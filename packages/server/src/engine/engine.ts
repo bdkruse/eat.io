@@ -201,3 +201,9 @@ export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number
     },
   };
 }
+
+export function setConnected(state: GameState, playerId: PlayerId, connected: boolean): GameState {
+  const player = state.players[playerId];
+  if (!player) return state;
+  return { ...state, players: { ...state.players, [playerId]: { ...player, connected } } };
+}

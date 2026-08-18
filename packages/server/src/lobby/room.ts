@@ -12,6 +12,7 @@ import {
   rankResult,
   resolveRound,
   resultFor,
+  setConnected,
   validateAction,
   viewFor,
 } from "../engine/engine.js";
@@ -45,6 +46,7 @@ export class Room {
   private deadlineAt: number | null = null;
   protected cancelDeadline: Cancel | null = null;
   protected disconnected = new Set<PlayerId>();
+  private cancelGrace: Cancel | null = null;
 
   constructor(protected readonly deps: RoomDeps) {
     this.id = deps.roomId;
@@ -150,5 +152,71 @@ export class Room {
 
   protected opponentOf(playerId: PlayerId): SeatRef | undefined {
     return this.seats.find((s) => s.id !== playerId);
+  }
+
+  markDisconnected(playerId: PlayerId): void {
+    if (!this.state) {
+      // Was still waiting for a second player; nothing to play, reap it.
+      this.deps.onFinished(this.id);
+      return;
+    }
+    if (this.state.phase === "finished" || this.state.phase === "abandoned") return;
+
+    this.disconnected.add(playerId);
+    this.state = setConnected(this.state, playerId, false);
+    this.state = { ...this.state, phase: "paused" };
+    this.clearDeadline();
+
+    const graceEndsAt = this.deps.clock.now() + this.deps.reconnectGraceMs;
+    const opponent = this.opponentOf(playerId);
+    if (opponent) this.deps.send(opponent.id, { type: "opponentDisconnected", graceEndsAt });
+    this.cancelGrace?.();
+    this.cancelGrace = this.deps.timers.schedule(this.deps.reconnectGraceMs, () => this.abandon());
+    this.deps.logger.info("player disconnected; room paused", { roomId: this.id, playerId });
+  }
+
+  markReconnected(playerId: PlayerId): void {
+    if (!this.state || this.state.phase !== "paused") return;
+    if (!this.disconnected.has(playerId)) return;
+
+    this.disconnected.delete(playerId);
+    this.state = setConnected(this.state, playerId, true);
+
+    if (this.disconnected.size === 0) {
+      this.cancelGrace?.();
+      this.cancelGrace = null;
+      this.state = { ...this.state, phase: "in-progress" };
+      const opponent = this.opponentOf(playerId);
+      if (opponent) this.deps.send(opponent.id, { type: "opponentReconnected" });
+      this.armDeadline();
+    }
+    this.broadcast();
+    this.deps.logger.info("player reconnected", { roomId: this.id, playerId });
+  }
+
+  leave(playerId: PlayerId): void {
+    if (!this.state) {
+      this.deps.onFinished(this.id);
+      return;
+    }
+    this.abandon();
+  }
+
+  private abandon(): void {
+    if (!this.state) {
+      this.deps.onFinished(this.id);
+      return;
+    }
+    if (this.state.phase === "finished" || this.state.phase === "abandoned") return;
+    this.clearDeadline();
+    this.cancelGrace?.();
+    this.cancelGrace = null;
+    this.state = { ...this.state, phase: "abandoned" };
+    for (const s of this.seats) {
+      const p = this.state.players[s.id];
+      if (p?.connected) this.deps.send(s.id, viewFor(this.state, s.id, null));
+    }
+    this.deps.onFinished(this.id);
+    this.deps.logger.info("room abandoned", { roomId: this.id });
   }
 }
