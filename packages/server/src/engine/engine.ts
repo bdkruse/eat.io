@@ -1,5 +1,6 @@
 import type { RejectionCode } from "@eat.io/protocol";
 import type { GameState, PlayerId, Submission } from "./state.js";
+import { pick } from "../util/rng.js";
 
 export type ValidationResult =
   | { ok: true }
@@ -32,4 +33,24 @@ export function validateAction(
     if (!ownTrayIds.has(id)) return reject("BAD_TARGET", "You can only target trays on your own table.");
   }
   return { ok: true };
+}
+
+export function applyAction(state: GameState, playerId: PlayerId, action: Submission): GameState {
+  const player = state.players[playerId];
+  if (!player) return state;
+  const submission: Submission = { cardId: action.cardId, targetTrayIds: [...action.targetTrayIds] };
+  return { ...state, players: { ...state.players, [playerId]: { ...player, submission } } };
+}
+
+export function autoMove(state: GameState, playerId: PlayerId): GameState {
+  const player = state.players[playerId];
+  if (!player || player.submission || player.hand.length === 0) return state;
+  const [card, rng] = pick(state.rng, player.hand);
+  const submission: Submission = { cardId: card.id, targetTrayIds: [], discard: true };
+  return { ...state, rng, players: { ...state.players, [playerId]: { ...player, submission } } };
+}
+
+export function everyoneSubmitted(state: GameState): boolean {
+  const players = Object.values(state.players);
+  return players.length > 0 && players.every((p) => p.submission !== null);
 }
