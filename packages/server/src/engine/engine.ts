@@ -1,4 +1,4 @@
-import type { RejectionCode } from "@eat.io/protocol";
+import type { RejectionCode, Result, Seat } from "@eat.io/protocol";
 import type { GameState, PlayerId, Submission } from "./state.js";
 import { pick } from "../util/rng.js";
 import type { Rng } from "../util/rng.js";
@@ -125,4 +125,42 @@ export function resolveRound(state: GameState, rules: Rules): { state: GameState
   };
   events.push({ type: "roundResolved", roundIndex: next.roundIndex });
   return { state: next, events };
+}
+
+export type EndCondition = (state: GameState) => boolean;
+
+/** Default end condition. Reads ONLY the round count — never scores. */
+export const roundLimitReached: EndCondition = (state) => state.roundIndex >= state.roundCount;
+
+export function isGameOver(state: GameState, ended: EndCondition = roundLimitReached): boolean {
+  return ended(state);
+}
+
+export interface RankedResult {
+  scores: Record<Seat, number>;
+  winner: Seat | null; // null === draw
+}
+
+/** Ranks final scores. Never decides WHEN to stop — only who is ahead. */
+export function rankResult(state: GameState): RankedResult {
+  const scores = {} as Record<Seat, number>;
+  let winner: Seat | null = null;
+  let best = -Infinity;
+  let tied = false;
+  for (const p of Object.values(state.players)) {
+    scores[p.seat] = p.score;
+    if (p.score > best) {
+      best = p.score;
+      winner = p.seat;
+      tied = false;
+    } else if (p.score === best) {
+      tied = true;
+    }
+  }
+  return { scores, winner: tied ? null : winner };
+}
+
+export function resultFor(ranked: RankedResult, seat: Seat): Result {
+  const kind = ranked.winner === null ? "draw" : ranked.winner === seat ? "win" : "loss";
+  return { kind, scores: ranked.scores };
 }
