@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Config } from "./config.js";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
-import { defaultRules } from "./engine/rules/index.js";
+import { makeRules } from "./engine/rules/index.js";
 import { systemClock, systemTimers } from "./lobby/timers.js";
 import { Matchmaker } from "./lobby/matchmaking.js";
 import { RoomRegistry } from "./lobby/registry.js";
@@ -20,7 +20,7 @@ export function createServer(config: Config = loadConfig()): Promise<Transport> 
   const logger = createLogger(config.logLevel, { app: "eatio" });
   const lobby = new Lobby({
     config,
-    rules: defaultRules,
+    rules: makeRules({ tableLength: config.tableLength, handSize: config.handSize }),
     clock: systemClock,
     timers: systemTimers,
     registry: new RoomRegistry(),

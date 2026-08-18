@@ -8,6 +8,8 @@ import type { Logger } from "../logger.js";
 export interface LobbyLike {
   handleMessage(conn: Connection, msg: ClientMessage): void;
   handleClose(conn: Connection): void;
+  /** Optional: notified before sockets are closed so rooms can resolve cleanly. */
+  shutdown?(): void;
 }
 
 export interface Transport {
@@ -22,7 +24,15 @@ export function startTransport(deps: {
 }): Promise<Transport> {
   const { lobby, config, logger } = deps;
   const wss = new WebSocketServer({ port: config.port });
-  const alive = new WeakMap<WebSocket, boolean>();
+  // A socket with an entry here has been pinged and owes us a pong.
+  const awaitingPong = new Map<WebSocket, ReturnType<typeof setTimeout>>();
+
+  function clearPong(socket: WebSocket): void {
+    const pending = awaitingPong.get(socket);
+    if (pending === undefined) return;
+    clearTimeout(pending);
+    awaitingPong.delete(socket);
+  }
 
   wss.on("connection", (socket) => {
     const conn: Connection = {
@@ -31,8 +41,7 @@ export function startTransport(deps: {
       },
       session: null,
     };
-    alive.set(socket, true);
-    socket.on("pong", () => alive.set(socket, true));
+    socket.on("pong", () => clearPong(socket));
 
     socket.on("message", (data) => {
       let raw: unknown;
@@ -57,18 +66,26 @@ export function startTransport(deps: {
       }
     });
 
-    socket.on("close", () => lobby.handleClose(conn));
+    socket.on("close", () => {
+      clearPong(socket);
+      lobby.handleClose(conn);
+    });
     socket.on("error", (err) => logger.warn("socket error", { err: String(err) }));
   });
 
   const heartbeat = setInterval(() => {
     for (const socket of wss.clients) {
-      if (alive.get(socket) === false) {
-        socket.terminate();
-        continue;
-      }
-      alive.set(socket, false);
+      if (awaitingPong.has(socket)) continue; // already on the clock
       socket.ping();
+      const deadline = setTimeout(() => {
+        awaitingPong.delete(socket);
+        logger.warn("no pong within timeout; dropping socket", {
+          timeoutMs: config.heartbeatTimeoutMs,
+        });
+        socket.terminate(); // half-open: free the seat so the grace window can start
+      }, config.heartbeatTimeoutMs);
+      deadline.unref?.();
+      awaitingPong.set(socket, deadline);
     }
   }, config.heartbeatIntervalMs);
   heartbeat.unref?.();
@@ -83,8 +100,18 @@ export function startTransport(deps: {
         close: () =>
           new Promise<void>((res) => {
             clearInterval(heartbeat);
-            for (const socket of wss.clients) socket.terminate();
-            wss.close(() => res());
+            for (const socket of wss.clients) clearPong(socket);
+            // Let rooms resolve and their final views flush before the sockets go.
+            lobby.shutdown?.();
+            for (const socket of wss.clients) socket.close(1001, "server shutting down");
+            const force = setTimeout(() => {
+              for (const socket of wss.clients) socket.terminate();
+            }, 50);
+            force.unref?.();
+            wss.close(() => {
+              clearTimeout(force);
+              res();
+            });
           }),
       });
     });

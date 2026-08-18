@@ -21,6 +21,11 @@ export class RoomRegistry {
     this.rooms.delete(id);
   }
 
+  /** Snapshot of the live rooms — a snapshot, because reaping mutates the map. */
+  list(): Room[] {
+    return [...this.rooms.values()];
+  }
+
   get size(): number {
     return this.rooms.size;
   }

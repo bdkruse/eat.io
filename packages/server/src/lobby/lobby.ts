@@ -60,6 +60,7 @@ export class Lobby {
       }
       case "queueCancel":
         this.deps.matchmaker.cancelPublic(playerId);
+        session.send({ type: "queueCancelled" });
         break;
       case "roomCreatePrivate":
         session.send({ type: "roomJoinedPrivate", code: this.deps.matchmaker.createPrivate(playerId) });
@@ -82,6 +83,7 @@ export class Lobby {
       case "roomLeave": {
         this.deps.matchmaker.remove(playerId);
         this.roomOf(playerId)?.leave(playerId);
+        session.send({ type: "roomLeft" });
         break;
       }
       default: {
@@ -89,6 +91,11 @@ export class Lobby {
         void never;
       }
     }
+  }
+
+  /** Called by the transport before sockets are torn down (§1.7). */
+  shutdown(): void {
+    for (const room of this.deps.registry.list()) room.shutdown();
   }
 
   handleClose(conn: Connection): void {

@@ -26,26 +26,37 @@ const EFFECTS: Record<CardAction, (value: number, amount: number) => number> = {
   multiply: (value, amount) => value * amount,
 };
 
-export const defaultRules: Rules = {
-  cards: CARD_CATALOG,
-  config: { ...TUNING },
+/**
+ * Builds a rules instance from the provisional content, with any tuning value
+ * overridden. The composition root passes the env-backed config through here so
+ * `TABLE_LENGTH` / `HAND_SIZE` reach the game while the owner iterates (§0.9).
+ */
+export function makeRules(overrides: Partial<RulesConfig> = {}): Rules {
+  const config: RulesConfig = { ...TUNING, ...overrides };
 
-  buildDeck(rng) {
-    const pool: Card[] = [];
-    for (let i = 0; i < TUNING.deckSize; i++) {
-      pool.push(CARD_CATALOG[i % CARD_CATALOG.length]!);
-    }
-    return shuffle(rng, pool);
-  },
+  return {
+    cards: CARD_CATALOG,
+    config,
 
-  freshTrayValue(rng) {
-    const span = TUNING.trayMax - TUNING.trayMin + 1;
-    const [n, next] = nextInt(rng, span);
-    return [TUNING.trayMin + n, next];
-  },
+    buildDeck(rng) {
+      const pool: Card[] = [];
+      for (let i = 0; i < config.deckSize; i++) {
+        pool.push(CARD_CATALOG[i % CARD_CATALOG.length]!);
+      }
+      return shuffle(rng, pool);
+    },
 
-  applyEffect(tray, card) {
-    const fn = EFFECTS[card.action];
-    return { ...tray, value: fn(tray.value, card.amount) };
-  },
-};
+    freshTrayValue(rng) {
+      const span = config.trayMax - config.trayMin + 1;
+      const [n, next] = nextInt(rng, span);
+      return [config.trayMin + n, next];
+    },
+
+    applyEffect(tray, card) {
+      const fn = EFFECTS[card.action];
+      return { ...tray, value: fn(tray.value, card.amount) };
+    },
+  };
+}
+
+export const defaultRules: Rules = makeRules();

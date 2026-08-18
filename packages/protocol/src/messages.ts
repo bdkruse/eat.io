@@ -101,6 +101,8 @@ export const ErrorSchema = z.object({
   message: z.string(),
 });
 export const QueueWaitingSchema = z.object({ type: z.literal("queueWaiting") });
+export const QueueCancelledSchema = z.object({ type: z.literal("queueCancelled") });
+export const RoomLeftSchema = z.object({ type: z.literal("roomLeft") });
 export const RoomJoinedPrivateSchema = z.object({ type: z.literal("roomJoinedPrivate"), code: z.string() });
 export const ActionAcceptedSchema = z.object({ type: z.literal("actionAccepted") });
 export const ActionRejectedSchema = z.object({
@@ -120,6 +122,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   WelcomeSchema,
   ErrorSchema,
   QueueWaitingSchema,
+  QueueCancelledSchema,
+  RoomLeftSchema,
   RoomJoinedPrivateSchema,
   RoomStateSchema,
   ActionAcceptedSchema,

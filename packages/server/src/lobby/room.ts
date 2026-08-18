@@ -99,7 +99,9 @@ export class Room {
   protected armDeadline(): void {
     this.cancelDeadline?.();
     this.deadlineAt = this.deps.clock.now() + this.deps.moveDeadlineMs;
-    this.cancelDeadline = this.deps.timers.schedule(this.deps.moveDeadlineMs, () => this.onDeadline());
+    this.cancelDeadline = this.deps.timers.schedule(this.deps.moveDeadlineMs, () =>
+      this.guard("move deadline", () => this.onDeadline()),
+    );
   }
 
   protected clearDeadline(): void {
@@ -150,8 +152,25 @@ export class Room {
     this.deps.logger.info("room finished", { roomId: this.id });
   }
 
+  /**
+   * Timer callbacks run detached from any caller, so a fault here would reach the
+   * event loop and take down the whole process. Contain it to this room (§1.7).
+   */
+  private guard(what: string, fn: () => void): void {
+    try {
+      fn();
+    } catch (err) {
+      this.deps.logger.error("room timer failed", { roomId: this.id, what, err: String(err) });
+    }
+  }
+
   protected opponentOf(playerId: PlayerId): SeatRef | undefined {
     return this.seats.find((s) => s.id !== playerId);
+  }
+
+  /** Process is going down: resolve the room rather than dropping players silently (§1.7). */
+  shutdown(): void {
+    this.guard("shutdown", () => this.abandon());
   }
 
   markDisconnected(playerId: PlayerId): void {
@@ -171,7 +190,9 @@ export class Room {
     const opponent = this.opponentOf(playerId);
     if (opponent) this.deps.send(opponent.id, { type: "opponentDisconnected", graceEndsAt });
     this.cancelGrace?.();
-    this.cancelGrace = this.deps.timers.schedule(this.deps.reconnectGraceMs, () => this.abandon());
+    this.cancelGrace = this.deps.timers.schedule(this.deps.reconnectGraceMs, () =>
+      this.guard("reconnect grace", () => this.abandon()),
+    );
     this.deps.logger.info("player disconnected; room paused", { roomId: this.id, playerId });
   }
 

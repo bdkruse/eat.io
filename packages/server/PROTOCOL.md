@@ -30,17 +30,22 @@ Any non-`hello` message sent before a successful `hello` gets `error` `code: "NO
 
 Every `submitTurn` receives exactly one of `actionAccepted` or `actionRejected`.
 
+Every other client message is acknowledged too: `queueJoin` → `queueWaiting` or a
+`roomState` if it paired immediately, `queueCancel` → `queueCancelled`,
+`roomCreatePrivate` → `roomJoinedPrivate`, `roomLeave` → `roomLeft`, `ping` → `pong`.
+Nothing is silently absorbed.
+
 ## Client → Server messages
 
 | `type` | Fields | Sent when |
 |---|---|---|
 | `hello` | `protocolVersion: number`, `name: string` (1–14 chars), `sessionToken?: string` | First message. Include `sessionToken` to reconnect to an existing seat. |
 | `queueJoin` | — | Enter the public matchmaking queue. |
-| `queueCancel` | — | Leave the public queue. |
+| `queueCancel` | — | Leave the public queue. Answered with `queueCancelled`. |
 | `roomCreatePrivate` | — | Create a private room; the server replies with a join code. |
 | `roomJoinPrivate` | `code: string` | Join a private room by its code. |
 | `submitTurn` | `cardId: string`, `targetTrayIds: string[]` | Commit this round's move: play `cardId` against the listed trays on your own table. For a card that takes N targets, send exactly N ids. |
-| `roomLeave` | — | Leave the current room and return to the menu. |
+| `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
 | `ping` | — | Liveness check; answered with `pong`. |
 
 `submitTurn` is the only in-game action, and it is **semantic** — it names what you did in
@@ -54,6 +59,8 @@ the client's business and resolve to this one committed action.
 | `welcome` | `playerId: string`, `sessionToken: string` | After a valid `hello` (new session or reconnect). |
 | `error` | `code: string`, `message: string` | A malformed/invalid/unknown/out-of-order message. Affects only this client. |
 | `queueWaiting` | — | You joined the public queue and are waiting for an opponent. |
+| `queueCancelled` | — | Acknowledges `queueCancel`; you are out of the queue. |
+| `roomLeft` | — | Acknowledges `roomLeave`; you are back at the menu. Sent whether or not you were in a room. |
 | `roomJoinedPrivate` | `code: string` | You created a private room; share this code. |
 | `roomState` | *(full view — see below)* | **Any** change to your game: on start, after every submission, after each round resolves, on pause/resume, and on abandon. |
 | `actionAccepted` | — | Your `submitTurn` was legal and recorded; awaiting the opponent. |
@@ -135,7 +142,8 @@ S→C roomState (roundIndex incremented, new deadlineAt)
 **Disconnect and reconnect**
 
 ```
-(socket drops)
+(socket drops — either the TCP connection closes, or the server's
+ ping goes unanswered for HEARTBEAT_TIMEOUT_MS and the socket is dropped)
 S→C(opponent) opponentDisconnected {graceEndsAt}     room is now paused
 (within grace, dropped client opens a new socket)
 C→S hello {protocolVersion:1, name:"Riley", sessionToken:<same token>}
@@ -151,3 +159,10 @@ S→C(both) roomState {phase:"in-progress", ...}       full view resent
    server auto-discards one random card from your hand (no tray effect)
 S→C roomState (round resolved)
 ```
+
+## Server shutdown
+
+On a clean shutdown the server resolves every live room before closing sockets: each
+player receives a final `roomState` with `phase: "abandoned"`, then the socket is closed
+with code `1001`. A client should treat that as the game ending, not as a network blip
+to retry into.

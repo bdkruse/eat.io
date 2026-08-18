@@ -133,3 +133,32 @@ test("private room: host gets a code, guest joins it", () => {
   expect(lastOf(host.out, "roomState")).toBeDefined();
   expect(lastOf(guest.out, "roomState")).toBeDefined();
 });
+
+test("queueCancel is acknowledged, not silently absorbed", () => {
+  const { lobby } = makeLobby();
+  const a = conn();
+  lobby.handleMessage(a.c, hello("Riley"));
+  lobby.handleMessage(a.c, { type: "queueJoin" });
+  lobby.handleMessage(a.c, { type: "queueCancel" });
+  expect(lastOf(a.out, "queueCancelled")).toEqual({ type: "queueCancelled" });
+});
+
+test("roomLeave is acknowledged even when the player is in no room", () => {
+  const { lobby } = makeLobby();
+  const a = conn();
+  lobby.handleMessage(a.c, hello("Riley"));
+  lobby.handleMessage(a.c, { type: "roomLeave" });
+  expect(lastOf(a.out, "roomLeft")).toEqual({ type: "roomLeft" });
+});
+
+test("leaving a live room acks and abandons it for the opponent", () => {
+  const { lobby } = makeLobby();
+  const a = conn(); const b = conn();
+  lobby.handleMessage(a.c, hello("Riley"));
+  lobby.handleMessage(b.c, hello("Sam"));
+  lobby.handleMessage(a.c, { type: "queueJoin" });
+  lobby.handleMessage(b.c, { type: "queueJoin" });
+  lobby.handleMessage(a.c, { type: "roomLeave" });
+  expect(lastOf(a.out, "roomLeft")).toBeDefined();
+  expect((lastOf(b.out, "roomState") as RoomStateMessage).phase).toBe("abandoned");
+});
