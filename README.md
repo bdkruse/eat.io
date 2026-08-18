@@ -17,4 +17,18 @@ npm test          # run all package tests
 npm start         # start the server
 ```
 
+## Try it
+
+There is no client yet, so `scripts/play-demo.mjs` connects two bots over real
+WebSockets and plays a full game — matchmaking, per-round scoring, and a
+viewer-relative result:
+
+```bash
+npm start                      # terminal 1
+node scripts/play-demo.mjs     # terminal 2
+```
+
+Both honour `PORT`. `RNG_SEED=42 npm start` replays an identical game, and
+`ROUND_COUNT=3` makes it short.
+
 Design docs live in `docs/superpowers/`.
