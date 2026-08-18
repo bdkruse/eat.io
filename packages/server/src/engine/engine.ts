@@ -1,4 +1,4 @@
-import type { RejectionCode, Result, Seat } from "@eat.io/protocol";
+import type { RejectionCode, Result, RoomStateMessage, Seat } from "@eat.io/protocol";
 import type { GameState, PlayerId, Submission } from "./state.js";
 import { pick } from "../util/rng.js";
 import type { Rng } from "../util/rng.js";
@@ -163,4 +163,41 @@ export function rankResult(state: GameState): RankedResult {
 export function resultFor(ranked: RankedResult, seat: Seat): Result {
   const kind = ranked.winner === null ? "draw" : ranked.winner === seat ? "win" : "loss";
   return { kind, scores: ranked.scores };
+}
+
+export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number | null): RoomStateMessage {
+  const you = state.players[playerId];
+  if (!you) throw new Error(`viewFor: unknown player ${playerId}`);
+  const opponent = Object.values(state.players).find((p) => p.id !== playerId);
+  if (!opponent) throw new Error("viewFor: no opponent seated");
+
+  return {
+    type: "roomState",
+    phase: state.phase,
+    roundIndex: state.roundIndex,
+    roundCount: state.roundCount,
+    deadlineAt,
+    you: {
+      seat: you.seat,
+      name: you.name,
+      score: you.score,
+      submitted: you.submission !== null,
+      table: you.table.map((t) => ({ id: t.id, value: t.value })),
+      hand: you.hand.map((c) => ({
+        id: c.id,
+        name: c.name,
+        action: c.action,
+        amount: c.amount,
+        targets: c.targets,
+      })),
+    },
+    opponent: {
+      seat: opponent.seat,
+      name: opponent.name,
+      score: opponent.score,
+      submitted: opponent.submission !== null,
+      handCount: opponent.hand.length,
+      table: opponent.table.map((t) => ({ id: t.id, value: t.value })),
+    },
+  };
 }
