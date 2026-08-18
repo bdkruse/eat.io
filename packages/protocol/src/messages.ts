@@ -133,6 +133,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 export type RoomStateMessage = z.infer<typeof RoomStateSchema>;
+export type WelcomeMessage = z.infer<typeof WelcomeSchema>;
 export type CardView = z.infer<typeof CardViewSchema>;
 export type TrayView = z.infer<typeof TrayViewSchema>;
 export type Result = z.infer<typeof ResultSchema>;
