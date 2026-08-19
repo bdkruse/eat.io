@@ -38,3 +38,24 @@
   background: var(--you); color: #fff; font-family: var(--font-structural); font-size: 13px;
   display: grid; place-items: center; box-shadow: var(--shadow); z-index: 2;
 }
+
+.board { overflow-x: auto; padding-bottom: 8px; }
+.board__inner { min-width: 900px; }
+
+.table-strip { display: flex; align-items: flex-end; gap: 18px; padding: 10px 0; }
+.table-strip__trays { position: relative; display: flex; gap: 16px; }
+.table-strip__edge { flex: 1; height: 10px; background: var(--table-edge); border: 2px solid var(--table-edge-border); border-radius: 6px; }
+.table-strip__end { text-align: center; }
+.table-strip__score {
+  font-family: var(--font-structural); font-weight: 800; font-size: 30px;
+  transition: transform 320ms;
+}
+.table-strip__score-label { font-family: var(--font-structural); font-size: 11px; letter-spacing: 0.1em; color: var(--ink-2); }
+
+.seat-line { display: flex; align-items: center; gap: 10px; font-family: var(--font-structural); }
+.seat-chip { width: 12px; height: 12px; border-radius: 3px; }
+.seat-chip--you { background: var(--you); }
+.seat-chip--opponent { background: var(--opponent); }
+.seat-line__ready { padding: 2px 10px; border-radius: 999px; background: var(--add); color: #fff; font-size: 12px; }
+.board__divider { border: none; border-top: 2px dashed var(--tray-border); margin: 14px 0; }
+.board--frozen { opacity: 0.45; filter: saturate(0.4); pointer-events: none; }
