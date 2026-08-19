@@ -2,13 +2,20 @@
   "name": "eat.io",
   "private": true,
   "type": "module",
-  "workspaces": ["packages/protocol", "packages/server"],
-  "engines": { "node": ">=22" },
+  "workspaces": [
+    "packages/protocol",
+    "packages/server",
+    "packages/client"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "typecheck": "tsc -b",
+    "typecheck": "tsc -b && tsc -p packages/client",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx watch packages/server/src/index.ts",
+    "dev:client": "npm run dev --workspace @eat.io/client",
     "start": "tsx packages/server/src/index.ts"
   },
   "devDependencies": {
