@@ -1,11 +1,16 @@
 import type { RoomStateMessage } from "@eat.io/protocol";
 import { Child } from "./Child.js";
+import { useEatenTrays } from "./useEatenTrays.js";
+import { useScorePop } from "./useScorePop.js";
 import { Tray } from "./Tray.js";
 
 type Opponent = RoomStateMessage["opponent"];
 
 /** Read-only by construction: no click handlers, no selection, no hand contents. */
 export function OpponentTable({ opponent, biting }: { opponent: Opponent; biting: boolean }) {
+  const { rendered, eatenIds, biting: chewing } = useEatenTrays(opponent.table);
+  const popping = useScorePop(opponent.score);
+
   return (
     <div>
       <div className="seat-line">
@@ -15,15 +20,28 @@ export function OpponentTable({ opponent, biting }: { opponent: Opponent; biting
         {opponent.submitted && <span className="seat-line__ready">READY</span>}
       </div>
       <div className="table-strip">
-        <div className="table-strip__trays">
-          {opponent.table.map((tray) => (
-            <Tray key={tray.id} tray={tray} variant="opponent" />
+        <div
+          className="table-strip__trays table-strip__trays--animated"
+          /* Absolute children carry no width, so the row is sized from the count. */
+          style={{ width: Math.max(0, rendered.length * 146 - 16) }}
+        >
+          {rendered.map((tray, index) => (
+            <Tray
+              key={tray.id}
+              tray={tray}
+              variant="opponent"
+              slot={index}
+              count={rendered.length}
+              eaten={eatenIds.has(tray.id)}
+            />
           ))}
         </div>
         <div className="table-strip__edge" />
         <div className="table-strip__end">
-          <Child accent="opponent" size="small" biting={biting} />
-          <div className="table-strip__score">{opponent.score}</div>
+          <Child accent="opponent" size="small" biting={biting || chewing} />
+          <div className={popping ? "table-strip__score table-strip__score--pop" : "table-strip__score"}>
+            {opponent.score}
+          </div>
         </div>
       </div>
     </div>
