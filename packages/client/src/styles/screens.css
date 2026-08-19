@@ -17,3 +17,21 @@
 @keyframes blink { 0%, 60%, 100% { opacity: 0.25; } 30% { opacity: 1; } }
 .queue__bob { animation: bob 1.8s ease-in-out infinite; display: inline-block; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+.over { text-align: center; }
+.over__badge {
+  display: inline-block; padding: 18px 34px; border-radius: var(--radius);
+  font-family: var(--font-structural); font-weight: 800; font-size: 28px; color: #fff;
+  box-shadow: var(--shadow); margin-bottom: 22px;
+}
+.over__badge--win { background: var(--add); }
+.over__badge--loss { background: var(--opponent); }
+.over__badge--draw { background: var(--multiply); }
+.over__card { margin: 0 auto 24px; border-collapse: collapse; min-width: 280px; }
+.over__card th, .over__card td {
+  padding: 10px 18px; font-family: var(--font-structural); text-align: left;
+  border-bottom: 2px solid var(--tray-border);
+}
+.over__row--winner { outline: 3px solid var(--add); background: rgba(95, 158, 74, 0.12); }
+.over__actions { display: flex; gap: 12px; justify-content: center; }
+.over__actions button.secondary { background: var(--ink-2); }
