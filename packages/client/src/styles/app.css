@@ -1,0 +1,14 @@
+.app { max-width: 1100px; margin: 0 auto; padding: 18px; }
+
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; margin-bottom: 16px;
+  background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.header__wordmark { font-family: var(--font-structural); font-weight: 800; font-size: 26px; }
+.header__round { font-family: var(--font-structural); letter-spacing: 0.08em; color: var(--ink-2); }
+.header__status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--add); }
+.dot--down { background: var(--you); }
+
+.screen { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; }
