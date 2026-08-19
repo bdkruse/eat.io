@@ -249,8 +249,10 @@ A draw is a first-class result with its own colour and copy, not a missing winne
   point, distributed across wells proportionally to capacity. Placement is **deterministic
   per tray id**, so the same tray always looks the same and a changed value adds or
   removes shapes without rearranging the rest. Past 14, surplus collapses to a `+N` chip.
-  Every tray carries its exact value on a pill beneath it — the number is never only
-  implied by the food.
+  **Every tray on both tables — yours and the opponent's — carries its exact value on a
+  pill beneath it.** The number is never only implied by the food, and never requires
+  counting shapes; the pill is the authority and the food is the at-a-glance read. The
+  pill turns tomato while that tray is a selected target (§2.8.5).
 - **Cards.** 118×156: coloured top strip with the effect glyph (`+3` green for add, `×2`
   amber for multiply), name, and a footer with the target count as a label plus that many
   pips. Everything comes from server data — **no `switch` over card ids, no hardcoded hand
