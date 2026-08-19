@@ -7,6 +7,7 @@ import "@fontsource/karla/400.css";
 import "@fontsource/karla/600.css";
 import "./styles/tokens.css";
 import "./styles/app.css";
+import "./styles/screens.css";
 import { App } from "./App.js";
 
 const container = document.getElementById("root");
