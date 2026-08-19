@@ -49,8 +49,8 @@ Four layers; dependencies point downward only.
   a thrown handler never crashes the process.
 - **Session** (`src/session/`) — one connected client: identity, a reconnection token, and a
   send that no-ops while detached (the socket is swapped on reconnect).
-- **Lobby / Room** (`src/lobby/`) — the coordinator, matchmaker (public queue + private
-  code), room registry with reaping, and the `Room` turn loop (submit → resolve, the 20s
+- **Lobby / Room** (`src/lobby/`) — the coordinator, matchmaker (public queue + single-use
+  four-digit private codes), room registry with reaping, and the `Room` turn loop (submit → resolve, the 20s
   move deadline, disconnect/pause/reconnect/abandon, broadcast via per-player projection).
 - **Game engine** (`src/engine/`) — **pure**: `(state, action) → state`. No sockets, no
   timers, no globals; clock and RNG are injected. A full game runs in a plain loop

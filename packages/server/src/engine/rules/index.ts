@@ -1,5 +1,5 @@
 import type { CardAction } from "@eat.io/protocol";
-import type { Card, Tray } from "../state.js";
+import type { CardDefinition, Tray } from "../state.js";
 import { type Rng, nextInt, shuffle } from "../../util/rng.js";
 import { CARD_CATALOG, TUNING } from "./content.js";
 
@@ -13,11 +13,12 @@ export interface RulesConfig {
 }
 
 export interface Rules {
-  readonly cards: readonly Card[];
+  readonly cards: readonly CardDefinition[];
   readonly config: RulesConfig;
-  buildDeck(rng: Rng): [Card[], Rng];
+  /** Returns definitions; the engine stamps instance ids as it deals and draws. */
+  buildDeck(rng: Rng): [CardDefinition[], Rng];
   freshTrayValue(rng: Rng): [number, Rng];
-  applyEffect(tray: Tray, card: Card): Tray;
+  applyEffect(tray: Tray, card: CardDefinition): Tray;
 }
 
 // Effect dispatch over data — a new action is a new entry, not a new branch.
@@ -39,7 +40,7 @@ export function makeRules(overrides: Partial<RulesConfig> = {}): Rules {
     config,
 
     buildDeck(rng) {
-      const pool: Card[] = [];
+      const pool: CardDefinition[] = [];
       for (let i = 0; i < config.deckSize; i++) {
         pool.push(CARD_CATALOG[i % CARD_CATALOG.length]!);
       }

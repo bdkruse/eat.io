@@ -35,3 +35,17 @@
 .over__row--winner { outline: 3px solid var(--add); background: rgba(95, 158, 74, 0.12); }
 .over__actions { display: flex; gap: 12px; justify-content: center; }
 .over__actions button.secondary { background: var(--ink-2); }
+
+.connect__actions { display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.connect__actions button.secondary { background: var(--ink-2); }
+.connect__joinrow { display: flex; gap: 10px; }
+.connect__code {
+  width: 110px; text-align: center; letter-spacing: 0.34em;
+  font-family: var(--font-structural); font-weight: 800; font-size: 20px;
+}
+.queue__code {
+  display: inline-block; margin: 14px 0; padding: 14px 28px;
+  background: var(--surface); border: 3px solid var(--you); border-radius: var(--radius);
+  font-family: var(--font-structural); font-weight: 800; font-size: 44px;
+  letter-spacing: 0.22em; box-shadow: var(--shadow);
+}

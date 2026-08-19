@@ -25,14 +25,14 @@ export function GameScreen() {
 
   if (!room) return null;
 
-  const card = selectYourCard(state, selection.cardId);
+  const card = selectYourCard(state, selection.cardInstanceId);
   const targetCount = card?.targets ?? 0;
   const awaitingYou = selectAwaitingYou(state);
   const ready = isSubmittable(selection, targetCount);
 
   const status = !awaitingYou
     ? "Waiting for your opponent"
-    : !selection.cardId
+    : !selection.cardInstanceId
       ? "Your move — pick a card"
       : !ready
         ? `Now tap ${targetCount} ${targetCount === 1 ? "tray" : "trays"}`
@@ -63,8 +63,8 @@ export function GameScreen() {
         <button
           disabled={!ready || !awaitingYou}
           onClick={() => {
-            if (!selection.cardId) return;
-            submitTurn(selection.cardId, selection.targetTrayIds);
+            if (!selection.cardInstanceId) return;
+            submitTurn(selection.cardInstanceId, selection.targetTrayIds);
             setSelection(emptySelection);
           }}
         >
@@ -74,8 +74,8 @@ export function GameScreen() {
 
       <Hand
         cards={room.you.hand}
-        selectedId={selection.cardId}
-        onSelect={(cardId) => setSelection(selectCard(selection, cardId))}
+        selectedInstanceId={selection.cardInstanceId}
+        onSelect={(cardInstanceId) => setSelection(selectCard(selection, cardInstanceId))}
       />
     </section>
   );

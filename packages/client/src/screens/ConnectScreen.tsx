@@ -3,8 +3,11 @@ import { initialServerUrl } from "../config.js";
 import { useGame } from "../state/GameProvider.js";
 
 export function ConnectScreen() {
-  const { state, connect, setName } = useGame();
+  const { state, connect, joinQueue, createPrivate, joinPrivate, setName } = useGame();
   const [serverUrl, setServerUrl] = useState(initialServerUrl());
+  const [roomCode, setRoomCode] = useState("");
+
+  const connected = state.connection.phase === "connected" && state.identity !== null;
 
   const ready = state.name.trim().length > 0 && serverUrl.trim().length > 0;
 
@@ -32,9 +35,38 @@ export function ConnectScreen() {
         />
       </label>
 
-      <button disabled={!ready} onClick={() => connect(serverUrl.trim(), state.name.trim())}>
-        Find a game
-      </button>
+      {!connected ? (
+        <button disabled={!ready} onClick={() => connect(serverUrl.trim(), state.name.trim())}>
+          Connect
+        </button>
+      ) : (
+        <div className="connect__actions">
+          <button onClick={joinQueue}>Find a game</button>
+          <button className="secondary" onClick={createPrivate}>
+            Create a private room
+          </button>
+
+          <div className="connect__joinrow">
+            <input
+              className="field__input connect__code"
+              value={roomCode}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              placeholder="0000"
+              aria-label="Room code"
+              onChange={(event) => setRoomCode(event.target.value.replace(/\D/g, ""))}
+            />
+            <button
+              className="secondary"
+              disabled={roomCode.length !== 4}
+              onClick={() => joinPrivate(roomCode)}
+            >
+              Join with code
+            </button>
+          </div>
+        </div>
+      )}
 
       {state.connection.error && <p className="connect__explainer">{state.connection.error}</p>}
 

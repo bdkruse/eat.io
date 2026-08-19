@@ -47,11 +47,11 @@ test("a legal submit is accepted and reflected; an illegal one is rejected", () 
   const v = h.lastState("p1");
   const card = v.you.hand.find((c) => c.targets === 1)!;
   const tray = v.you.table[0]!;
-  h.room.submit("p1", { cardId: card.id, targetTrayIds: [tray.id] });
+  h.room.submit("p1", { cardInstanceId: card.instanceId, targetTrayIds: [tray.id] });
   expect(h.sent["p1"]!.some((m) => m.type === "actionAccepted")).toBe(true);
   expect(h.lastState("p1").you.submitted).toBe(true);
 
-  h.room.submit("p2", { cardId: "no-such-card", targetTrayIds: [] });
+  h.room.submit("p2", { cardInstanceId: "no-such-card", targetTrayIds: [] });
   const rej = h.sent["p2"]!.find((m) => m.type === "actionRejected");
   expect(rej).toMatchObject({ type: "actionRejected", code: "CARD_NOT_HELD" });
 });
@@ -61,7 +61,7 @@ test("when both submit, the round resolves and roundIndex advances", () => {
   for (const id of ["p1", "p2"] as const) {
     const v = h.lastState(id);
     const card = v.you.hand.find((c) => c.targets === 1)!;
-    h.room.submit(id, { cardId: card.id, targetTrayIds: [v.you.table[0]!.id] });
+    h.room.submit(id, { cardInstanceId: card.instanceId, targetTrayIds: [v.you.table[0]!.id] });
   }
   expect(h.lastState("p1").roundIndex).toBe(1);
 });
@@ -70,7 +70,7 @@ test("an expired deadline auto-discards for the idle player and resolves", () =>
   const h = harness();
   const v = h.lastState("p1");
   const card = v.you.hand.find((c) => c.targets === 1)!;
-  h.room.submit("p1", { cardId: card.id, targetTrayIds: [v.you.table[0]!.id] });
+  h.room.submit("p1", { cardInstanceId: card.instanceId, targetTrayIds: [v.you.table[0]!.id] });
   // p2 never submits; advance past the 20s deadline
   h.time.advance(20000);
   expect(h.lastState("p1").roundIndex).toBe(1);
@@ -82,7 +82,7 @@ test("the game ends after roundCount rounds with a per-player gameOver", () => {
     for (const id of ["p1", "p2"] as const) {
       const v = h.lastState(id);
       const card = v.you.hand.find((c) => c.targets === 1)!;
-      h.room.submit(id, { cardId: card.id, targetTrayIds: [v.you.table[0]!.id] });
+      h.room.submit(id, { cardInstanceId: card.instanceId, targetTrayIds: [v.you.table[0]!.id] });
     }
   }
   expect(h.room.phase).toBe("finished");

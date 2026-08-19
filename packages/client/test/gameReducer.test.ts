@@ -156,3 +156,21 @@ test("pong changes nothing", () => {
   const before = play(welcomed(), room());
   expect(server(before, { type: "pong" })).toEqual(before);
 });
+
+test("creating a private room parks the player on the waiting screen with a code", () => {
+  const state = play(welcomed(), { type: "roomJoinedPrivate", code: "0427" });
+  expect(state.privateCode).toBe("0427");
+});
+
+test("cancelling clears a private code as well as the queue flag", () => {
+  let state = play(welcomed(), { type: "roomJoinedPrivate", code: "0427" });
+  state = server(state, { type: "queueCancelled" });
+  expect(state.privateCode).toBeNull();
+  expect(state.queued).toBe(false);
+});
+
+test("a guest joining by code lands in the room with no code left showing", () => {
+  const state = play(welcomed(), { type: "roomJoinedPrivate", code: "0427" }, room());
+  expect(state.privateCode).toBeNull();
+  expect(state.room).not.toBeNull();
+});

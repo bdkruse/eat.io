@@ -4,7 +4,7 @@
 import { WebSocket } from "ws";
 
 const PORT = process.env.PORT ?? 8000;
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = 2;
 
 const pad = (text, width) => String(text).padEnd(width);
 const describeCard = (card) =>
@@ -63,7 +63,11 @@ function bot(name, { verbose }) {
           if (!move) break;
           lastRoundSubmitted = msg.roundIndex;
           if (verbose) console.log(`    ${name} plays: ${describeCard(move.card)}`);
-          send({ type: "submitTurn", cardId: move.card.id, targetTrayIds: move.targetTrayIds });
+          send({
+            type: "submitTurn",
+            cardInstanceId: move.card.instanceId,
+            targetTrayIds: move.targetTrayIds,
+          });
           break;
         }
         case "actionRejected":

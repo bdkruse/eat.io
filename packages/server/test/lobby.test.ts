@@ -82,7 +82,11 @@ test("submitTurn is routed to the player's room", () => {
   lobby.handleMessage(b.c, { type: "queueJoin" });
   const v = lastOf(a.out, "roomState") as RoomStateMessage;
   const card = v.you.hand.find((c) => c.targets === 1)!;
-  lobby.handleMessage(a.c, { type: "submitTurn", cardId: card.id, targetTrayIds: [v.you.table[0]!.id] });
+  lobby.handleMessage(a.c, {
+    type: "submitTurn",
+    cardInstanceId: card.instanceId,
+    targetTrayIds: [v.you.table[0]!.id],
+  });
   expect(lastOf(a.out, "actionAccepted")).toBeDefined();
 });
 
@@ -90,7 +94,7 @@ test("submitTurn with no room is explicitly rejected", () => {
   const { lobby } = makeLobby();
   const a = conn();
   lobby.handleMessage(a.c, hello("Riley"));
-  lobby.handleMessage(a.c, { type: "submitTurn", cardId: "x", targetTrayIds: [] });
+  lobby.handleMessage(a.c, { type: "submitTurn", cardInstanceId: "x", targetTrayIds: [] });
   expect(lastOf(a.out, "actionRejected")).toMatchObject({ code: "NOT_IN_ROOM" });
 });
 

@@ -3,23 +3,22 @@ import { Card } from "./Card.js";
 
 export function Hand({
   cards,
-  selectedId,
+  selectedInstanceId,
   onSelect,
 }: {
   cards: CardView[];
-  selectedId: string | null;
-  onSelect: (cardId: string) => void;
+  selectedInstanceId: string | null;
+  onSelect: (cardInstanceId: string) => void;
 }) {
   return (
     <div className="hand">
-      {cards.map((card, index) => (
-        // Card ids repeat across a hand (the deck holds duplicates), so the key pairs
-        // the id with its slot.
+      {cards.map((card) => (
+        // instanceId is unique within the game, so it is a correct React key on its own.
         <Card
-          key={`${card.id}:${index}`}
+          key={card.instanceId}
           card={card}
-          selected={selectedId === card.id}
-          onClick={() => onSelect(card.id)}
+          selected={selectedInstanceId === card.instanceId}
+          onClick={() => onSelect(card.instanceId)}
         />
       ))}
     </div>

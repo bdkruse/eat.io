@@ -76,7 +76,8 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       return { ...state, queued: true };
 
     case "queueCancelled":
-      return { ...state, queued: false };
+      // Cancels both kinds of waiting, so the private code goes too.
+      return { ...state, queued: false, privateCode: null };
 
     case "roomJoinedPrivate":
       return { ...state, privateCode: msg.code };

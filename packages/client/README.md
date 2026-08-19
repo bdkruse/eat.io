@@ -95,8 +95,13 @@ data. There is no `switch` over card ids and no hardcoded tray count.
 - **The child is placeholder geometry**, not illustration. Whatever replaces it must keep
   the mouth as a separately animatable element.
 - No spectator mode, chat, replays, or animation beyond the specified set.
-- Private rooms are supported by the protocol and the state layer, but no screen currently
-  offers "create a private room" — the Connect screen only joins the public queue.
+
+## Playing privately
+
+Connect, then either **Find a game** to join the public queue, or **Create a private room**
+to get a four-digit code. Whoever you give it to enters it under **Join with code** and you
+are seated together. A code is single-use and cannot be redeemed by its own creator; there
+are no passwords. Cancelling while you wait releases the code.
 
 ## Open questions for the protocol
 
@@ -112,7 +117,3 @@ Recorded rather than decided unilaterally, per the client's quality bar:
 - **"Play again" is expressed as a second `queueJoin`.** There is no explicit rematch
   message, so players are re-queued into the public pool rather than rematched with the same
   opponent. Is a rematch flow wanted?
-- **Card `id` is not unique within a hand.** The deck contains duplicates, so two cards in
-  hand can share an id. Selection therefore targets whichever copy the server matches first.
-  This is harmless today because duplicates are identical, but a future card with per-copy
-  state would need instance ids.

@@ -1,4 +1,4 @@
-import type { Card } from "../state.js";
+import type { CardDefinition } from "../state.js";
 
 // ---------------------------------------------------------------------------
 // PROVISIONAL base rules content. This is a starter set the owner will expand
@@ -6,7 +6,7 @@ import type { Card } from "../state.js";
 // Do NOT treat these values as final game design.
 // ---------------------------------------------------------------------------
 
-export const CARD_CATALOG: readonly Card[] = [
+export const CARD_CATALOG: readonly CardDefinition[] = [
   { id: "add1x1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1 },
   { id: "add1x2", name: "Add One Food To Two Trays", action: "add", amount: 1, targets: 2 },
   { id: "add3x1", name: "Add Three Food To One Tray", action: "add", amount: 3, targets: 1 },

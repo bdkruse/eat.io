@@ -59,7 +59,8 @@ export class Lobby {
         break;
       }
       case "queueCancel":
-        this.deps.matchmaker.cancelPublic(playerId);
+        // Covers both ways of waiting: the public queue and an unclaimed private room.
+        this.deps.matchmaker.remove(playerId);
         session.send({ type: "queueCancelled" });
         break;
       case "roomCreatePrivate":
@@ -77,7 +78,10 @@ export class Lobby {
           this.sendTo(playerId, { type: "actionRejected", code: "NOT_IN_ROOM", message: "You are not in a game." });
           break;
         }
-        room.submit(playerId, { cardId: msg.cardId, targetTrayIds: msg.targetTrayIds });
+        room.submit(playerId, {
+          cardInstanceId: msg.cardInstanceId,
+          targetTrayIds: msg.targetTrayIds,
+        });
         break;
       }
       case "roomLeave": {

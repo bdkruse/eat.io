@@ -3,16 +3,17 @@
  * is a *legal move* is the server's decision (§2.6, §0.8).
  */
 export interface Selection {
-  cardId: string | null;
+  /** The card INSTANCE picked from hand, not the catalog id — two copies can share that. */
+  cardInstanceId: string | null;
   /** In click order — §2.8.5 shows numbered badges for multi-target cards. */
   targetTrayIds: string[];
 }
 
-export const emptySelection: Selection = { cardId: null, targetTrayIds: [] };
+export const emptySelection: Selection = { cardInstanceId: null, targetTrayIds: [] };
 
-export function selectCard(selection: Selection, cardId: string): Selection {
-  if (selection.cardId === cardId) return selection;
-  return { cardId, targetTrayIds: [] };
+export function selectCard(selection: Selection, cardInstanceId: string): Selection {
+  if (selection.cardInstanceId === cardInstanceId) return selection;
+  return { cardInstanceId, targetTrayIds: [] };
 }
 
 export interface TrayClickResult {
@@ -26,7 +27,7 @@ export function toggleTray(
   trayId: string,
   targetCount: number,
 ): TrayClickResult {
-  if (selection.cardId === null) {
+  if (selection.cardInstanceId === null) {
     return { selection, needsCardFirst: true };
   }
   if (selection.targetTrayIds.includes(trayId)) {
@@ -47,5 +48,5 @@ export function toggleTray(
 
 /** End turn is enabled from this and nothing else (§2.8.5). */
 export function isSubmittable(selection: Selection, targetCount: number): boolean {
-  return selection.cardId !== null && selection.targetTrayIds.length === targetCount;
+  return selection.cardInstanceId !== null && selection.targetTrayIds.length === targetCount;
 }

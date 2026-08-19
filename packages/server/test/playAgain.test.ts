@@ -48,7 +48,7 @@ function playToEnd(lobby: Lobby, a: ReturnType<typeof conn>, b: ReturnType<typeo
       const card = view.you.hand.find((c) => c.targets === 1)!;
       lobby.handleMessage(side.c, {
         type: "submitTurn",
-        cardId: card.id,
+        cardInstanceId: card.instanceId,
         targetTrayIds: [view.you.table[0]!.id],
       });
     }

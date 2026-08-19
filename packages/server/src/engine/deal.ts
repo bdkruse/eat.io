@@ -1,7 +1,7 @@
 import type { Seat } from "@eat.io/protocol";
 import { makeRng, type Rng } from "../util/rng.js";
 import type { Rules } from "./rules/index.js";
-import type { GameState, PlayerId, PlayerState, Tray } from "./state.js";
+import type { Card, GameState, PlayerId, PlayerState, Tray } from "./state.js";
 
 export interface CreateGameOptions {
   roomId: string;
@@ -15,11 +15,20 @@ export function createGame(opts: CreateGameOptions): GameState {
   const { rules } = opts;
   let rng: Rng = makeRng(opts.seed);
   let nextTrayId = 0;
+  let nextCardId = 0;
   const players: Record<PlayerId, PlayerState> = {};
 
+  /** One dealt copy: the catalog definition plus an id unique within this game. */
+  const stamp = (definitions: readonly { id: string }[]): Card[] =>
+    definitions.map((definition) => ({
+      ...(definition as Card),
+      instanceId: String(nextCardId++),
+    }));
+
   for (const seat of opts.seats) {
-    const [deck, afterDeck] = rules.buildDeck(rng);
+    const [definitions, afterDeck] = rules.buildDeck(rng);
     rng = afterDeck;
+    const deck = stamp(definitions);
     const hand = deck.splice(0, rules.config.handSize); // remove dealt cards from the pile
 
     const table: Tray[] = [];
@@ -50,5 +59,6 @@ export function createGame(opts: CreateGameOptions): GameState {
     players,
     rng,
     nextTrayId,
+    nextCardId,
   };
 }

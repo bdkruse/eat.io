@@ -23,7 +23,7 @@ test("an add card boosts the targeted tray, and the front tray is eaten and scor
   const frontTray = p1.table[0]!;
   const expectedScore = frontTray.value + addCard.amount; // boost the front tray, then eat it
 
-  g = applyAction(g, "p1", { cardId: addCard.id, targetTrayIds: [frontTray.id] });
+  g = applyAction(g, "p1", { cardInstanceId: addCard.instanceId, targetTrayIds: [frontTray.id] });
   g = autoMove(g, "p2");
   const { state } = resolveRound(g, defaultRules);
 

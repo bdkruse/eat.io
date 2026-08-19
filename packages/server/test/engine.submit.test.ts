@@ -21,8 +21,11 @@ test("applyAction records a submission without changing the board", () => {
   const card = g.players["p1"]!.hand.find((c) => c.targets === 1)!;
   const trayId = g.players["p1"]!.table[0]!.id;
   const before = JSON.stringify(g.players["p1"]!.table);
-  const next = applyAction(g, "p1", { cardId: card.id, targetTrayIds: [trayId] });
-  expect(next.players["p1"]!.submission).toMatchObject({ cardId: card.id, targetTrayIds: [trayId] });
+  const next = applyAction(g, "p1", { cardInstanceId: card.instanceId, targetTrayIds: [trayId] });
+  expect(next.players["p1"]!.submission).toMatchObject({
+    cardInstanceId: card.instanceId,
+    targetTrayIds: [trayId],
+  });
   expect(JSON.stringify(next.players["p1"]!.table)).toBe(before); // no board change yet
 });
 
@@ -31,7 +34,7 @@ test("autoMove marks a discard submission of a held card", () => {
   const next = autoMove(g, "p1");
   const sub = next.players["p1"]!.submission!;
   expect(sub.discard).toBe(true);
-  expect(next.players["p1"]!.hand.some((c) => c.id === sub.cardId)).toBe(true);
+  expect(next.players["p1"]!.hand.some((c) => c.instanceId === sub.cardInstanceId)).toBe(true);
 });
 
 test("everyoneSubmitted is the barrier across all players", () => {

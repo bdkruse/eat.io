@@ -43,7 +43,8 @@ export function selectScreen(state: AppState): Screen {
   if (!state.identity) return "connect";
   if (state.result) return "gameOver";
   if (state.room) return "game";
-  if (state.queued) return "queue";
+  // Holding a private code means waiting for someone to type it — same screen as the queue.
+  if (state.queued || state.privateCode) return "queue";
   return "connect";
 }
 
@@ -59,7 +60,10 @@ export function selectBoardFrozen(state: AppState): boolean {
   return state.connection.phase !== "connected";
 }
 
-export function selectYourCard(state: AppState, cardId: string | null): CardView | undefined {
-  if (!cardId || !state.room) return undefined;
-  return state.room.you.hand.find((card) => card.id === cardId);
+export function selectYourCard(
+  state: AppState,
+  cardInstanceId: string | null,
+): CardView | undefined {
+  if (!cardInstanceId || !state.room) return undefined;
+  return state.room.you.hand.find((card) => card.instanceId === cardInstanceId);
 }

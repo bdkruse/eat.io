@@ -11,7 +11,11 @@ import {
 // ---------- value shapes ----------
 
 export const CardViewSchema = z.object({
+  /** Which card this IS — the catalog id, and the natural key for a future database row.
+   *  Repeats across copies: two "Add One Food" cards in a hand share it. */
   id: z.string(),
+  /** Which copy this is — unique within a game, so a specific card in hand can be named. */
+  instanceId: z.string(),
   name: z.string(),
   action: CardActionSchema,
   amount: z.number().int().positive(),
@@ -71,7 +75,8 @@ export const RoomCreatePrivateSchema = z.object({ type: z.literal("roomCreatePri
 export const RoomJoinPrivateSchema = z.object({ type: z.literal("roomJoinPrivate"), code: z.string() });
 export const SubmitTurnSchema = z.object({
   type: z.literal("submitTurn"),
-  cardId: z.string(),
+  /** The card INSTANCE being played (CardView.instanceId), never the catalog id. */
+  cardInstanceId: z.string(),
   targetTrayIds: z.array(z.string()),
 });
 export const RoomLeaveSchema = z.object({ type: z.literal("roomLeave") });

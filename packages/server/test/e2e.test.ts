@@ -56,7 +56,11 @@ test("two clients matchmake and play a full game to gameOver", async () => {
     for (const c of [a, b]) {
       const v = c.lastRoomState()!;
       const card = v.you.hand.find((k) => k.targets === 1)!;
-      c.send({ type: "submitTurn", cardId: card.id, targetTrayIds: [v.you.table[0]!.id] });
+      c.send({
+        type: "submitTurn",
+        cardInstanceId: card.instanceId,
+        targetTrayIds: [v.you.table[0]!.id],
+      });
     }
     await a.next(reachedRound(round + 1));
     await b.next(reachedRound(round + 1));

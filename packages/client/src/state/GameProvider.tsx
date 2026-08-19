@@ -20,7 +20,7 @@ export interface GameApi {
   cancelQueue(): void;
   createPrivate(): void;
   joinPrivate(code: string): void;
-  submitTurn(cardId: string, targetTrayIds: string[]): void;
+  submitTurn(cardInstanceId: string, targetTrayIds: string[]): void;
   leaveRoom(): void;
   playAgain(): void;
   dismissRejection(): void;
@@ -55,7 +55,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelQueue: () => send({ type: "queueCancel" }),
       createPrivate: () => send({ type: "roomCreatePrivate" }),
       joinPrivate: (code) => send({ type: "roomJoinPrivate", code }),
-      submitTurn: (cardId, targetTrayIds) => send({ type: "submitTurn", cardId, targetTrayIds }),
+      submitTurn: (cardInstanceId, targetTrayIds) =>
+        send({ type: "submitTurn", cardInstanceId, targetTrayIds }),
       leaveRoom: () => send({ type: "roomLeave" }),
       playAgain: () => {
         dispatch({ kind: "playAgain" });

@@ -12,10 +12,18 @@ test("valid hello parses and keeps optional sessionToken absent", () => {
   if (msg.type === "hello") expect(msg.sessionToken).toBeUndefined();
 });
 
-test("submitTurn requires cardId and targetTrayIds array", () => {
-  const ok = parseClientMessage({ type: "submitTurn", cardId: "add1x1", targetTrayIds: ["t1"] });
+test("submitTurn names a card INSTANCE and requires a targets array", () => {
+  const ok = parseClientMessage({
+    type: "submitTurn",
+    cardInstanceId: "c7",
+    targetTrayIds: ["t1"],
+  });
   expect(ok.type).toBe("submitTurn");
-  expect(() => parseClientMessage({ type: "submitTurn", cardId: "add1x1" })).toThrow();
+  expect(() => parseClientMessage({ type: "submitTurn", cardInstanceId: "c7" })).toThrow();
+  // The catalog id is not accepted in its place — the field names differ deliberately.
+  expect(() =>
+    parseClientMessage({ type: "submitTurn", cardId: "add1x1", targetTrayIds: ["t1"] }),
+  ).toThrow();
 });
 
 test("unknown message type is rejected, not silently accepted", () => {
@@ -31,7 +39,7 @@ test("server room.state carries opponent hand COUNT, never cards", () => {
     deadlineAt: 123,
     you: { seat: "a", name: "Riley", score: 0, submitted: false,
       table: [{ id: "t1", value: 2 }],
-      hand: [{ id: "add1x1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1 }] },
+      hand: [{ id: "add1x1", instanceId: "c1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1 }] },
     opponent: { seat: "b", name: "Sam", score: 0, submitted: false, handCount: 5,
       table: [{ id: "u1", value: 3 }] },
   };

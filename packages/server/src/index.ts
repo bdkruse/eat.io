@@ -9,11 +9,10 @@ import { RoomRegistry } from "./lobby/registry.js";
 import { Lobby } from "./lobby/lobby.js";
 import { startTransport, type Transport } from "./transport/server.js";
 
+/** A four-digit room code — easy to read aloud and type. Collisions are retried by the
+ *  matchmaker, and 10,000 codes is ample for the concurrent rooms this process holds. */
 function randomCode(): string {
-  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // no ambiguous chars
-  let out = "";
-  for (let i = 0; i < 4; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
+  return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
 }
 
 export function createServer(config: Config = loadConfig()): Promise<Transport> {

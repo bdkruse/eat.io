@@ -56,3 +56,13 @@ test("the board is frozen whenever the socket is not live", () => {
     ),
   ).toBe(true);
 });
+
+test("a connected player with nothing in flight stays on connect to choose how to play", () => {
+  // Regression: an earlier build assumed `welcome` alone moved you off the Connect screen,
+  // which left the player connected but stranded with no way to enter a game.
+  expect(selectScreen(seated())).toBe("connect");
+});
+
+test("holding a private room code shows the waiting screen", () => {
+  expect(selectScreen(seated({ privateCode: "0427" }))).toBe("queue");
+});

@@ -1,6 +1,6 @@
 # eat.io WebSocket Protocol
 
-**Protocol version: 1.** This document is the complete contract between the eat.io
+**Protocol version: 2.** This document is the complete contract between the eat.io
 server and any client. The zod schemas in `@eat.io/protocol` are the source of truth; this
 prose describes them. If they disagree, the schemas win — but they should not.
 
@@ -43,8 +43,8 @@ Nothing is silently absorbed.
 | `queueJoin` | — | Enter the public matchmaking queue. |
 | `queueCancel` | — | Leave the public queue. Answered with `queueCancelled`. |
 | `roomCreatePrivate` | — | Create a private room; the server replies with a join code. |
-| `roomJoinPrivate` | `code: string` | Join a private room by its code. |
-| `submitTurn` | `cardId: string`, `targetTrayIds: string[]` | Commit this round's move: play `cardId` against the listed trays on your own table. For a card that takes N targets, send exactly N ids. |
+| `roomJoinPrivate` | `code: string` | Join a private room by its four-digit code. A code is consumed on use and cannot be joined by its own host; either failure returns `error` `NO_SUCH_ROOM`. |
+| `submitTurn` | `cardInstanceId: string`, `targetTrayIds: string[]` | Commit this round's move: play that specific card from your hand against the listed trays on your own table. For a card that takes N targets, send exactly N ids. **Send `card.instanceId`, not `card.id`** — see below. |
 | `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
 | `ping` | — | Liveness check; answered with `pong`. |
 
@@ -61,7 +61,7 @@ the client's business and resolve to this one committed action.
 | `queueWaiting` | — | You joined the public queue and are waiting for an opponent. |
 | `queueCancelled` | — | Acknowledges `queueCancel`; you are out of the queue. |
 | `roomLeft` | — | Acknowledges `roomLeave`; you are back at the menu. Sent whether or not you were in a room. |
-| `roomJoinedPrivate` | `code: string` | You created a private room; share this code. |
+| `roomJoinedPrivate` | `code: string` | You created a private room; share this **four-digit** code. |
 | `roomState` | *(full view — see below)* | **Any** change to your game: on start, after every submission, after each round resolves, on pause/resume, and on abandon. |
 | `actionAccepted` | — | Your `submitTurn` was legal and recorded; awaiting the opponent. |
 | `actionRejected` | `code: RejectionCode`, `message: string` | Your `submitTurn` was illegal. |
@@ -88,8 +88,8 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "score": number,             // total eaten so far
     "submitted": boolean,        // have you committed this round
     "table": [ { "id": string, "value": number }, ... ],   // front tray first
-    "hand": [ { "id": string, "name": string, "action": "add" | "multiply",
-               "amount": number, "targets": number }, ... ]
+    "hand": [ { "id": string, "instanceId": string, "name": string,
+               "action": "add" | "multiply", "amount": number, "targets": number }, ... ]
   },
   "opponent": {
     "seat": "a" | "b",
@@ -107,6 +107,20 @@ payload — not hidden, absent. Render only what you are sent.
 
 **Rendering from data:** card `name`, `action`, `amount`, and `targets` all come from the
 server. Do not hardcode card behavior, hand size, or table length — they can change.
+
+### The two card ids
+
+Each card in hand carries **two** identifiers, and they answer different questions:
+
+- **`id`** — *which card this is.* The catalog id, shared by every copy of that card, and
+  the natural key for a future database row. Two "Add One Food To One Tray" cards in the
+  same hand have the same `id`.
+- **`instanceId`** — *which copy this is.* Unique within a game. Use it as a list key and
+  as the thing `submitTurn` names.
+
+`submitTurn` takes `cardInstanceId`. Sending a catalog id there is a schema error, not a
+guess the server will resolve for you — that ambiguity is exactly what the two fields
+exist to prevent.
 
 ### `Result` (inside `gameOver`)
 
@@ -127,12 +141,12 @@ ordinary value — render it, do not treat it as a missing winner.
 **Matchmake and play a round**
 
 ```
-C→S hello {protocolVersion:1, name:"Riley"}
+C→S hello {protocolVersion:2, name:"Riley"}
 S→C welcome {playerId, sessionToken}
 C→S queueJoin
 S→C queueWaiting                     (until an opponent arrives)
 S→C roomState {phase:"in-progress", deadlineAt, you, opponent}
-C→S submitTurn {cardId, targetTrayIds}
+C→S submitTurn {cardInstanceId, targetTrayIds}
 S→C actionAccepted
 S→C roomState (you.submitted:true)
    ... when both have submitted, the round resolves ...
@@ -146,7 +160,7 @@ S→C roomState (roundIndex incremented, new deadlineAt)
  ping goes unanswered for HEARTBEAT_TIMEOUT_MS and the socket is dropped)
 S→C(opponent) opponentDisconnected {graceEndsAt}     room is now paused
 (within grace, dropped client opens a new socket)
-C→S hello {protocolVersion:1, name:"Riley", sessionToken:<same token>}
+C→S hello {protocolVersion:2, name:"Riley", sessionToken:<same token>}
 S→C welcome {playerId:<same>, sessionToken:<same>}
 S→C(opponent) opponentReconnected
 S→C(both) roomState {phase:"in-progress", ...}       full view resent
