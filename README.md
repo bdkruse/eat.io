@@ -8,14 +8,20 @@ An npm-workspaces monorepo:
   types.
 - **`packages/server`** (`@eat.io/server`) — the authoritative WebSocket game server. See
   its [README](./packages/server/README.md) and [PROTOCOL.md](./packages/server/PROTOCOL.md).
-
-The React client is a separate project (built later) that depends on `@eat.io/protocol`.
+- **`packages/client`** (`@eat.io/client`) — the React client that renders the game. See its
+  [README](./packages/client/README.md).
 
 ```bash
 npm install
-npm test          # run all package tests
-npm start         # start the server
+npm test            # all package tests
+npm run typecheck   # strict tsc across all three packages
+
+npm start           # terminal 1 — the game server on :8000
+npm run dev:client  # terminal 2 — the client; open its URL in two windows to play
 ```
+
+With no browser handy, `node scripts/play-demo.mjs` runs two bots through a full game
+against the server.
 
 ## Try it
 
