@@ -10,6 +10,7 @@ import "./styles/app.css";
 import "./styles/screens.css";
 import "./styles/board.css";
 import "./styles/hand.css";
+import "./styles/overlays.css";
 import { App } from "./App.js";
 
 const container = document.getElementById("root");
