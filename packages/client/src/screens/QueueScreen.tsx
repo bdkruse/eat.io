@@ -1,3 +1,4 @@
+import { Child } from "../components/board/Child.js";
 import { useGame } from "../state/GameProvider.js";
 
 export function QueueScreen() {
@@ -6,7 +7,7 @@ export function QueueScreen() {
   return (
     <section className="screen queue">
       <div className="queue__bob" aria-hidden="true">
-        <span style={{ fontSize: 64 }}>&#129498;</span>
+        <Child accent="you" />
       </div>
       <h2 className="queue__title">
         Finding you a lunch buddy
