@@ -18,7 +18,8 @@
     "dev:3d": "npm run dev --workspace @eat.io/client-3d",
     "start": "tsx packages/server/src/index.ts",
     "build:server": "node scripts/build-server.mjs",
-    "deploy:server": "node scripts/deploy-server.mjs"
+    "deploy:server": "node scripts/deploy-server.mjs",
+    "accounts:seed": "tsx packages/server/scripts/seed-accounts.ts"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
