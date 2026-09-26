@@ -42,8 +42,13 @@ modules directly, so there is one copy of each:
 | `state/selection.ts` | Card and tray selection rules |
 | `connection/*` | Socket lifecycle and reconnect |
 | `food/foodLayout.ts` | Food placement that never rearranges |
-| `components/board/useEatenTrays.ts`, `useScorePop.ts` | Motion that never delays state |
+| `components/board/useScorePop.ts` | The score pop that never delays state |
 | `components/overlays/*` | Toast, connection banner, opponent-dropped modal |
+
+The one exception is `useEatenTrays`, which has its own copy in `src/hooks/`. The classic
+version can keep an eaten tray forever. A second table update inside its 600 ms window
+cancels the removal. In 3D that stuck tray leaves the eater chomping for
+the rest of the game. The classic client still has this bug.
 
 The 3D client adds presentation only. It computes no game state, and every number on
 screen comes from the server.
@@ -73,7 +78,7 @@ Click a card, then click trays on your side of the table. Keys `1` to `5` pick a
 ## Detail levels
 
 The High / Low switch in the top corner changes how much of the room is drawn. It works on
-every screen, including mid-game, and it resets when you reload.
+every screen, including mid-game. The choice resets on reload.
 
 | | High | Low |
 |---|---|---|

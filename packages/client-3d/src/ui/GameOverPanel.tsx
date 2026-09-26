@@ -1,9 +1,10 @@
 import { useGame } from "@eat.io/client/state/GameProvider.js";
+import { useRetained } from "../hooks/useRetained.js";
 
 export function GameOverPanel() {
   const { state, playAgain, leaveToMenu } = useGame();
-  const result = state.result;
-  const room = state.room;
+  const result = useRetained(state.result);
+  const room = useRetained(state.room);
   if (!result || !room) return null;
 
   const headline = result.kind === "win" ? "You ate the most!" : result.kind === "loss" ? `${room.opponent.name} ate the most` : "Dead even — a draw";

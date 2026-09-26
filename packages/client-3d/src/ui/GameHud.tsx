@@ -1,5 +1,6 @@
 import { useScorePop } from "@eat.io/client/components/board/useScorePop.js";
 import { useGame } from "@eat.io/client/state/GameProvider.js";
+import { useRetained } from "../hooks/useRetained.js";
 
 function ScoreCard({ side, name, score, ready }: { side: "you" | "opponent"; name: string; score: number; ready: boolean }) {
   const popping = useScorePop(score);
@@ -21,7 +22,7 @@ function ScoreCard({ side, name, score, ready }: { side: "you" | "opponent"; nam
  */
 export function GameHud() {
   const { state } = useGame();
-  const room = state.room;
+  const room = useRetained(state.room);
   if (!room) return null;
   return (
     <div className="hud">
@@ -33,7 +34,7 @@ export function GameHud() {
 
 export function RoundChip() {
   const { state } = useGame();
-  const room = state.room;
+  const room = useRetained(state.room);
   if (!room) return null;
   return (
     <span className="round-chip">

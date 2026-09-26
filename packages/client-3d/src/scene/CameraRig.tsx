@@ -5,6 +5,7 @@ import { ROOM } from "./cafeteria/layout.js";
 import { CAMERA_SHOTS, type ShotName } from "./cameraShots.js";
 
 const CEILING_CLEARANCE = ROOM.height - 0.25;
+const WALL_CLEARANCE = 0.3;
 const DEFAULT_UP: [number, number, number] = [0, 1, 0];
 
 /** How quickly the camera settles on a new shot; about a second and a half end to end. */
@@ -35,8 +36,11 @@ export function CameraRig({ shot }: { shot: ShotName }) {
     const distance = direction.length();
     const needed = spec.minimumWidth / 2 / Math.tan(horizontalHalfFov);
     if (needed > distance) position.copy(target).addScaledVector(direction.normalize(), needed);
-    // Never back out through the ceiling; the bunting and lights would fill the view.
+    // Never back out through the ceiling or a wall — walls are one-sided, so the room would
+    // be seen from outside. On a very narrow window the shot is simply tighter.
     position.y = Math.min(position.y, CEILING_CLEARANCE);
+    position.x = MathUtils.clamp(position.x, ROOM.minX + WALL_CLEARANCE, ROOM.maxX - WALL_CLEARANCE);
+    position.z = MathUtils.clamp(position.z, ROOM.minZ + WALL_CLEARANCE, ROOM.maxZ - WALL_CLEARANCE);
 
     if (spec.drift > 0) {
       const time = clock.elapsedTime;

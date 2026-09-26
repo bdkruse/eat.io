@@ -43,6 +43,13 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
 
+  // A match found mid-edit takes you to the table; the customize screen must not reappear
+  // when that game ends.
+  const inRoom = state.room !== null;
+  useEffect(() => {
+    if (inRoom) setCustomizing(false);
+  }, [inRoom]);
+
   const roundIndex = state.room?.roundIndex ?? null;
   // A resolved round replaces the hand, and a new room starts clean — never carry a pick over.
   useEffect(() => {

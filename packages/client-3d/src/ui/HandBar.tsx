@@ -4,6 +4,7 @@ import { useGame } from "@eat.io/client/state/GameProvider.js";
 import { selectAwaitingYou, selectBoardFrozen } from "@eat.io/client/state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { RoundChip } from "./GameHud.js";
+import { useRetained } from "../hooks/useRetained.js";
 
 function LunchCard({ card, index, selected, disabled, onClick }: { card: CardView; index: number; selected: boolean; disabled: boolean; onClick: () => void }) {
   // Everything shown comes from server data — no switch over card ids.
@@ -33,7 +34,7 @@ function LunchCard({ card, index, selected, disabled, onClick }: { card: CardVie
 export function HandBar() {
   const { state } = useGame();
   const { selection, targetCount, ready, chooseCard, clearSelection, endTurn } = useLocalState();
-  const room = state.room;
+  const room = useRetained(state.room);
   const awaitingYou = selectAwaitingYou(state);
   const frozen = selectBoardFrozen(state);
   const hand = room?.you.hand ?? [];

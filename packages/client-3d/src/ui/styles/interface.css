@@ -1,13 +1,16 @@
 .app3d { position: fixed; inset: 0; }
 
-.stage { position: absolute; inset: 0; transition: filter 400ms; }
+/* Two stacking layers: labels drawn over the 3D table stay under every panel. */
+.stage { position: absolute; inset: 0; transition: filter 400ms; isolation: isolate; z-index: 0; }
 /* A board that is not connected must look dead, not just be dead. */
 .stage--frozen { filter: grayscale(0.85) brightness(0.92); pointer-events: none; }
 
-.interface { position: absolute; inset: 0; pointer-events: none; }
+.interface { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .interface > * { pointer-events: auto; }
 .interface > .fade { pointer-events: none; }
 .interface > .fade > * { pointer-events: auto; }
+/* A panel on its way out must not catch clicks meant for what is appearing under it. */
+.interface > .fade:not(.fade--visible) > * { pointer-events: none; }
 
 /* ---------- fades and docking ---------- */
 .fade { opacity: 0; transition: opacity 450ms ease, transform 450ms ease; }

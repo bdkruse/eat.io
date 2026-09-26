@@ -13,8 +13,10 @@ export function Fade({ show, className, children }: { show: boolean; className?:
   useEffect(() => {
     if (show) {
       setMounted(true);
-      // Mount first at opacity 0, then transition in on the next frame.
-      const frame = requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
+      // Mount first at opacity 0, then transition in two frames later, once it has painted.
+      let frame = requestAnimationFrame(() => {
+        frame = requestAnimationFrame(() => setVisible(true));
+      });
       return () => cancelAnimationFrame(frame);
     }
     setVisible(false);

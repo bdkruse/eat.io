@@ -71,13 +71,20 @@ export function Tray3D({ tray, side, slot, slotCount, fresh, eaten, selected, or
 
   // A tray that stops being clickable (turn submitted, board frozen) or leaves the table
   // must not leave the pointer cursor behind.
+  // Only the tray that set the cursor clears it, so a tray arriving elsewhere cannot.
   const clickable = onClick !== undefined;
+  const ownsCursor = useRef(false);
+  const releaseCursor = () => {
+    if (!ownsCursor.current) return;
+    ownsCursor.current = false;
+    document.body.style.cursor = "";
+  };
   useEffect(() => {
     if (clickable) return;
     setHovered(false);
-    document.body.style.cursor = "";
+    releaseCursor();
   }, [clickable]);
-  useEffect(() => () => void (document.body.style.cursor = ""), []);
+  useEffect(() => releaseCursor, []);
 
   const pointerHandlers = onClick
     ? {
@@ -88,11 +95,12 @@ export function Tray3D({ tray, side, slot, slotCount, fresh, eaten, selected, or
         onPointerOver: (event: ThreeEvent<PointerEvent>) => {
           event.stopPropagation();
           setHovered(true);
+          ownsCursor.current = true;
           document.body.style.cursor = "pointer";
         },
         onPointerOut: () => {
           setHovered(false);
-          document.body.style.cursor = "";
+          releaseCursor();
         },
       }
     : {};
