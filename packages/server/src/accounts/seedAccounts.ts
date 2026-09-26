@@ -44,12 +44,19 @@ export const generatePassword: () => string = defaultGeneratePassword;
  * Applies each seed entry: an existing account only gets its role set (when it
  * differs); a missing one is created with the password `choosePassword` supplies,
  * or a generated password when it returns null.
+ *
+ * When given, `onOutcome` is called right after each entry is processed — created or
+ * updated — before the next entry starts. That is the only place a generated
+ * password for an earlier entry is ever exposed if a later entry then throws (a
+ * failed `choosePassword` or a rejected `store.register`): the returned array is
+ * only complete once the whole run has succeeded, but `onOutcome` already saw it.
  */
 export async function seedAccounts(
   store: AccountStore,
   entries: readonly SeedEntry[],
   choosePassword: (username: string) => Promise<string | null>,
   generatePassword: () => string = defaultGeneratePassword,
+  onOutcome?: (outcome: SeedOutcome) => void,
 ): Promise<SeedOutcome[]> {
   const outcomes: SeedOutcome[] = [];
 
@@ -57,7 +64,9 @@ export async function seedAccounts(
     const existingAccount = store.findByUsername(entry.username);
     if (existingAccount) {
       if (existingAccount.role !== entry.role) store.setRole(existingAccount.id, entry.role);
-      outcomes.push({ username: entry.username, role: entry.role, created: false, generatedPassword: null });
+      const outcome: SeedOutcome = { username: entry.username, role: entry.role, created: false, generatedPassword: null };
+      outcomes.push(outcome);
+      onOutcome?.(outcome);
       continue;
     }
 
@@ -70,7 +79,9 @@ export async function seedAccounts(
     if (!result.ok) {
       throw new Error(`seedAccounts: could not create ${entry.username}: ${result.code}`);
     }
-    outcomes.push({ username: entry.username, role: entry.role, created: true, generatedPassword });
+    const outcome: SeedOutcome = { username: entry.username, role: entry.role, created: true, generatedPassword };
+    outcomes.push(outcome);
+    onOutcome?.(outcome);
   }
 
   return outcomes;

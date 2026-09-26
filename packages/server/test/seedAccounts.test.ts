@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { manualTime } from "../src/lobby/timers.js";
 import { openAccountsDatabase, type AccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
-import { generatePassword, SEED_ACCOUNTS, seedAccounts } from "../src/accounts/seedAccounts.js";
+import { generatePassword, SEED_ACCOUNTS, seedAccounts, type SeedOutcome } from "../src/accounts/seedAccounts.js";
 
 function makeStore(): { database: AccountsDatabase; store: AccountStore } {
   const database = openAccountsDatabase(":memory:");
@@ -75,5 +75,25 @@ describe("seedAccounts", () => {
     const bainOutcome = outcomes.find((outcome) => outcome.username === "Bain");
     expect(bainOutcome?.generatedPassword).toBeNull();
     expect(store.verifyLogin("Bain", "a chosen password for bain")).not.toBeNull();
+  });
+
+  test("onOutcome receives an earlier account's outcome, including its generated password, before a later failure propagates", async () => {
+    const { store } = makeStore();
+    const receivedOutcomes: SeedOutcome[] = [];
+    const choosePassword = async (username: string): Promise<string | null> => {
+      if (username === "Bain") return null;
+      throw new Error("choosePassword failed for a later account");
+    };
+
+    await expect(
+      seedAccounts(store, SEED_ACCOUNTS, choosePassword, generatePassword, (outcome) =>
+        receivedOutcomes.push(outcome),
+      ),
+    ).rejects.toThrow("choosePassword failed for a later account");
+
+    expect(receivedOutcomes).toHaveLength(1);
+    expect(receivedOutcomes[0]?.username).toBe("Bain");
+    expect(receivedOutcomes[0]?.created).toBe(true);
+    expect(receivedOutcomes[0]?.generatedPassword).not.toBeNull();
   });
 });
