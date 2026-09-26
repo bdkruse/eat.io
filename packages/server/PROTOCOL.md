@@ -20,6 +20,8 @@ not create a session. On success the server replies with `welcome`, which carrie
 `playerId` and a `sessionToken` (used only for reconnection).
 
 Any non-`hello` message sent before a successful `hello` gets `error` `code: "NO_SESSION"`.
+A second `hello` on a connection that already has a session gets `error`
+`code: "ALREADY_GREETED"`. The existing session stays as it is. No new session is created.
 
 ## Two kinds of failure
 

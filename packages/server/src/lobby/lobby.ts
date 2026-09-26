@@ -154,6 +154,12 @@ export class Lobby {
   }
 
   private handleHello(conn: Connection, msg: Extract<ClientMessage, { type: "hello" }>): void {
+    // One session per connection. A fresh session would bring a fresh login guard,
+    // so a second hello could reset the brute-force limit (spec §5).
+    if (conn.session) {
+      conn.send({ type: "error", code: "ALREADY_GREETED", message: "This connection already has a session." });
+      return;
+    }
     if (msg.protocolVersion !== PROTOCOL_VERSION) {
       conn.send({ type: "error", code: "PROTOCOL_MISMATCH", message: `Server speaks protocol ${PROTOCOL_VERSION}.` });
       return;

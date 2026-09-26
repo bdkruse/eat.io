@@ -413,3 +413,55 @@ test("a guest gets NOT_LOGGED_IN for logout, password change, and profile", () =
   }
   expect(countOf(riley.out, "accountError")).toBe(3);
 });
+
+const ALREADY_GREETED = {
+  type: "error",
+  code: "ALREADY_GREETED",
+  message: "This connection already has a session.",
+} as const;
+
+test("a second hello on the same connection is refused and does not reset the login guard", () => {
+  const { lobby, accounts } = makeLobby();
+  accounts.register("Riley_1", PASSWORD);
+  const riley = guest(lobby, "Riley");
+  const sessionBefore = riley.socket.session;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    lobby.handleMessage(riley.socket, { type: "accountLogin", username: "Riley_1", password: "wrong-password" });
+  }
+
+  lobby.handleMessage(riley.socket, hello("Riley"));
+  expect(riley.out[riley.out.length - 1]).toEqual(ALREADY_GREETED);
+  expect(riley.socket.session).toBe(sessionBefore);
+  expect(countOf(riley.out, "welcome")).toBe(1);
+
+  lobby.handleMessage(riley.socket, { type: "accountLogin", username: "Riley_1", password: PASSWORD });
+  expect(lastOf(riley.out, "accountError")?.code).toBe("RATE_LIMITED");
+  expect(lastOf(riley.out, "accountLoggedIn")).toBeUndefined();
+});
+
+test("a second hello with a login token cannot reset the guard on password changes", () => {
+  const { lobby } = makeLobby();
+  const riley = registered(lobby, "Riley_1");
+  const loginToken = lastOf(riley.out, "accountLoggedIn")!.loginToken!;
+  const sessionBefore = riley.socket.session;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    lobby.handleMessage(riley.socket, {
+      type: "accountChangePassword",
+      currentPassword: "wrong-password",
+      newPassword: "battery-staple",
+    });
+  }
+
+  lobby.handleMessage(riley.socket, hello("Riley", { loginToken }));
+  expect(riley.out[riley.out.length - 1]).toEqual(ALREADY_GREETED);
+  expect(riley.socket.session).toBe(sessionBefore);
+  expect(countOf(riley.out, "accountLoggedIn")).toBe(1);
+
+  lobby.handleMessage(riley.socket, {
+    type: "accountChangePassword",
+    currentPassword: PASSWORD,
+    newPassword: "battery-staple",
+  });
+  expect(lastOf(riley.out, "accountError")?.code).toBe("RATE_LIMITED");
+  expect(lastOf(riley.out, "passwordChanged")).toBeUndefined();
+});
