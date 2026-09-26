@@ -32,7 +32,7 @@ export function loadConfig(env: Env = process.env): Config {
   const seedRaw = env["RNG_SEED"];
   return {
     port: int(env, "PORT", 8000),
-    roundCount: int(env, "ROUND_COUNT", 10),
+    roundCount: int(env, "ROUND_COUNT", 20),
     moveDeadlineMs: int(env, "MOVE_DEADLINE_MS", 20000),
     reconnectGraceMs: int(env, "RECONNECT_GRACE_MS", 30000),
     heartbeatIntervalMs: int(env, "HEARTBEAT_INTERVAL_MS", 15000),
