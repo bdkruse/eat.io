@@ -4,6 +4,10 @@ import { dirname } from "node:path";
 
 export type AccountsDatabase = Database.Database;
 
+const LOCK_WAIT_MS = 5000;
+const LOCKED_RETRY_ATTEMPTS = 50;
+const LOCKED_RETRY_PAUSE_MS = 100;
+
 /**
  * Each entry runs once, in order, tracked by `PRAGMA user_version`. Append new
  * migrations rather than editing an entry that has already shipped.
@@ -42,16 +46,44 @@ export function openAccountsDatabase(path: string): AccountsDatabase {
     mkdirSync(dirname(path), { recursive: true });
   }
   const database = new Database(path);
-  database.pragma("journal_mode = WAL");
+  // A host can start two copies of the server at once during a restart. Wait for the
+  // other copy's lock instead of failing on it.
+  database.pragma(`busy_timeout = ${LOCK_WAIT_MS}`);
+  retryWhileLocked(() => database.pragma("journal_mode = WAL"));
   database.pragma("foreign_keys = ON");
-  runMigrations(database);
+  retryWhileLocked(() => runMigrations(database));
   return database;
 }
 
-function runMigrations(database: AccountsDatabase): void {
-  const currentVersion = database.pragma("user_version", { simple: true }) as number;
-  for (let migrationVersion = currentVersion; migrationVersion < MIGRATIONS.length; migrationVersion++) {
-    database.exec(MIGRATIONS[migrationVersion]!);
-    database.pragma(`user_version = ${migrationVersion + 1}`);
+/**
+ * SQLite answers "database is locked" at once, without using busy_timeout, while
+ * another process is switching a fresh file to WAL. Only that error is retried, briefly.
+ */
+function retryWhileLocked<Result>(operation: () => Result): Result {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return operation();
+    } catch (error) {
+      const locked = error instanceof Error && /database is locked|SQLITE_BUSY/.test(`${error.message} ${(error as { code?: string }).code ?? ""}`);
+      if (!locked || attempt >= LOCKED_RETRY_ATTEMPTS) throw error;
+      // Startup only, so a synchronous pause is fine: nothing else is running yet.
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, LOCKED_RETRY_PAUSE_MS);
+    }
   }
+}
+
+/**
+ * One write-locked transaction: the version is read under the lock, so a second process
+ * that was waiting sees the migrations the first one applied and skips them. A migration
+ * that fails partway rolls back with its version bump.
+ */
+function runMigrations(database: AccountsDatabase): void {
+  const migrate = database.transaction(() => {
+    const currentVersion = database.pragma("user_version", { simple: true }) as number;
+    for (let migrationVersion = currentVersion; migrationVersion < MIGRATIONS.length; migrationVersion++) {
+      database.exec(MIGRATIONS[migrationVersion]!);
+      database.pragma(`user_version = ${migrationVersion + 1}`);
+    }
+  });
+  migrate.immediate();
 }

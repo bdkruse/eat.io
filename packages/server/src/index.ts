@@ -78,5 +78,10 @@ if (isMain) {
     };
     process.on("SIGINT", () => void shutdown("SIGINT"));
     process.on("SIGTERM", () => void shutdown("SIGTERM"));
+  }).catch((error: unknown) => {
+    // A server that cannot open its database or port must exit, so the host restarts it,
+    // instead of lingering half-started.
+    logger.error("startup failed", { err: String(error) });
+    process.exit(1);
   });
 }
