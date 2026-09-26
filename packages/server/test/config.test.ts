@@ -22,3 +22,8 @@ test("env overrides are parsed as integers", () => {
 test("a non-numeric override fails loudly", () => {
   expect(() => loadConfig({ PORT: "not-a-number" })).toThrow(/PORT/);
 });
+
+test("DATABASE_PATH defaults and can be overridden", () => {
+  expect(loadConfig({}).databasePath).toBe("data/eatio.sqlite");
+  expect(loadConfig({ DATABASE_PATH: "tmp/test.sqlite" }).databasePath).toBe("tmp/test.sqlite");
+});

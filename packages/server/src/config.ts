@@ -11,6 +11,7 @@ export interface Config {
   handSize: number;
   seed: number | null;
   logLevel: LogLevel;
+  databasePath: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -21,6 +22,11 @@ function int(env: Env, key: string, fallback: number): number {
   const n = Number(raw);
   if (!Number.isInteger(n)) throw new Error(`Config: ${key} must be an integer, got "${raw}"`);
   return n;
+}
+
+function str(env: Env, key: string, fallback: string): string {
+  const raw = env[key];
+  return raw === undefined || raw === "" ? fallback : raw;
 }
 
 const LEVELS: readonly LogLevel[] = ["debug", "info", "warn", "error"];
@@ -41,5 +47,6 @@ export function loadConfig(env: Env = process.env): Config {
     handSize: int(env, "HAND_SIZE", 5),
     seed: seedRaw === undefined || seedRaw === "" ? null : int(env, "RNG_SEED", 0),
     logLevel,
+    databasePath: str(env, "DATABASE_PATH", "data/eatio.sqlite"),
   };
 }

@@ -4,6 +4,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "scripts": { "build": "tsc -b" },
-  "dependencies": { "@eat.io/protocol": "*", "ws": "^8.18.0", "zod": "^3.23.0" },
-  "devDependencies": { "@types/ws": "^8.5.0" }
+  "dependencies": {
+    "@eat.io/protocol": "*",
+    "better-sqlite3": "^13.0.3",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": { "@types/better-sqlite3": "^9.6.0", "@types/ws": "^8.5.0" }
 }

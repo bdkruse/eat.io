@@ -18,3 +18,6 @@ build/
 
 # Test coverage
 coverage/
+
+# SQLite data
+data/
