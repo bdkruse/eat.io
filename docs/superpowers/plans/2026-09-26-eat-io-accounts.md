@@ -21,7 +21,7 @@
 - Login tokens: 32 random bytes, hex encoded, stored only as SHA-256 hex, valid 30 days (`30 * 24 * 60 * 60 * 1000` ms).
 - Brute-force guard: 5 failures within 60 000 ms on one session gives `RATE_LIMITED` for the rest of that window.
 - Roles: `player` (default), `admin`, `creator`. Permissions: `["admin.open"]`. Creator gets every permission.
-- Seed list: Bain → creator. Noah, Ruby, Mindi → admin. No passwords in the repo.
+- Seed list: Bain → creator. Noah, Ruby, Mindi, Clint → admin. No passwords in the repo.
 - Vocabulary: table, tray, eaten, card, hand, deck, round, room, seat, opponent. Never "plate."
 - Full, descriptive variable names (`username_index`, not `idx`).
 - Commits end with no Claude or Anthropic attribution lines.
@@ -201,7 +201,7 @@ export class AccountStore {
 
 // seedAccounts.ts
 export interface SeedEntry { username: string; role: Role }
-export const SEED_ACCOUNTS: readonly SeedEntry[];  // Bain creator; Noah, Ruby, Mindi admin
+export const SEED_ACCOUNTS: readonly SeedEntry[];  // Bain creator; Noah, Ruby, Mindi, Clint admin
 export interface SeedOutcome { username: string; role: Role; created: boolean; generatedPassword: string | null }
 /** For each entry: an existing account only gets its role set; a missing one is created
  *  with the password from choosePassword, or a generated 16-character one when it returns null. */
@@ -244,7 +244,7 @@ Stored appearance JSON that fails `AppearanceSchema` on read becomes `null`.
   - passwords: round trip. A wrong password fails. Two hashes of the same password differ. A malformed stored value returns false.
   - loginGuard: 4 failures not blocked. The 5th blocks. Blocked until 60 000 ms after the first failure in the window, then unblocked.
   - accountStore: register then `findByUsername("BAIN")` finds `Bain`. A duplicate in other capitals gives `USERNAME_TAKEN`. Bad usernames and passwords give their codes. `verifyLogin` with the right and wrong password. `recordLogin` sets `lastLoginAt` to the clock. A token resumes. After advancing the clock past 30 days it returns null and the row is gone. `deleteOtherLoginTokens` keeps only the named token. `changePassword` ok, `WRONG_PASSWORD`, `INVALID_PASSWORD`. `saveAppearance` round trip. `recordGames` with a win, a loss (score 0 allowed), and a draw (`won: false`) updates all three counters. Inserting role `'boss'` directly with SQL throws. `profileOf` for a creator lists `admin.open`.
-  - seedAccounts: a first run creates all four with the right roles and reports generated passwords where `choosePassword` returned null. A second run creates nothing and leaves password hashes unchanged. An existing `player` account named `noah` is promoted to `admin`.
+  - seedAccounts: a first run creates all five with the right roles and reports generated passwords where `choosePassword` returned null. A second run creates nothing and leaves password hashes unchanged. An existing `player` account named `noah` is promoted to `admin`.
   - config: `DATABASE_PATH` default and override.
 - [ ] Run them and see them fail.
 - [ ] Implement. `npm install` from the repo root after adding the dependency.
@@ -313,8 +313,8 @@ Stored appearance JSON that fails `AppearanceSchema` on read becomes `null`.
 - [ ] Implement.
 - [ ] Try it by hand, with no prompt needed:
   1. Point `DATABASE_PATH` at a file in a new temporary folder.
-  2. Create the four seed accounts in that file with a short `npx tsx -e` script that calls `AccountStore.register`.
-  3. Run `npm run accounts:seed`. Expect four `updated` lines, because every account exists.
+  2. Create the five seed accounts in that file with a short `npx tsx -e` script that calls `AccountStore.register`.
+  3. Run `npm run accounts:seed`. Expect five `updated` lines, because every account exists.
   4. Run it again with an empty database and stdin from `/dev/null`. Expect the non-terminal error and a non-zero exit.
 - [ ] Commit: `feat(server): npm run accounts:seed to create or promote the seed accounts`.
 

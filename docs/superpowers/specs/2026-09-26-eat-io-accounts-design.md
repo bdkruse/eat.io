@@ -15,7 +15,7 @@ next time they log in. The account also tracks points scored, games played, game
 last login date, and the creation date. A profile button in the client opens the profile.
 
 Accounts have roles. The owner, "Bain", is the Creator and has every permission. "Noah",
-"Ruby", and "Mindi" are Admins. Admins can open an admin UI that does not exist yet.
+"Ruby", "Mindi", and "Clint" are Admins. Admins can open an admin UI that does not exist yet.
 
 Success: a guest can still play with no account. A player can create an account, play,
 close the browser, come back logged in, and see their saved look and updated stats.
@@ -152,6 +152,7 @@ usernames and roles only, never passwords:
 | Noah | admin |
 | Ruby | admin |
 | Mindi | admin |
+| Clint | admin |
 
 `npm run accounts:seed` opens the database at `DATABASE_PATH` and goes through the list.
 For an account that does not exist, it asks for a password with hidden input. Pressing
