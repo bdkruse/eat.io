@@ -51,6 +51,13 @@
   background: var(--surface-glass); padding: 7px 12px; border-radius: 999px; box-shadow: var(--shadow);
 }
 .topbar__right { display: flex; gap: 10px; align-items: center; pointer-events: auto; }
+.profile-button {
+  display: flex; gap: 8px; align-items: center;
+  font-family: var(--font-structural); font-weight: 700; font-size: 13px; color: var(--ink-2);
+  background: var(--surface-glass); padding: 7px 14px; border-radius: 999px; box-shadow: var(--shadow);
+  border: none; cursor: pointer; transition: color 150ms;
+}
+.profile-button:hover { color: var(--ink); }
 .detail-toggle {
   display: flex; align-items: center; gap: 2px; padding: 3px 3px 3px 12px;
   background: var(--surface-glass); border-radius: 999px; box-shadow: var(--shadow);
@@ -64,6 +71,9 @@
 .detail-toggle__option--picked { background: var(--ink); color: #fff; }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--add); }
 .dot--down { background: var(--you); }
+.dot--role-player { background: var(--ink-3); }
+.dot--role-admin { background: var(--multiply); }
+.dot--role-creator { background: var(--gold); }
 
 /* ---------- panels ---------- */
 .panel {
@@ -96,6 +106,12 @@
 .field__input:focus { border-color: var(--you); }
 .field__input:disabled { background: var(--well); color: var(--ink-2); }
 .field__input--quiet { font-size: 13px; padding: 8px 12px; color: var(--ink-2); }
+
+.account-form__rules { color: var(--ink-2); font-size: 12px; line-height: 1.5; margin: 4px 0 14px; }
+.link-button {
+  background: none; border: none; padding: 0; margin: 0; font: inherit;
+  color: var(--you); font-weight: 700; cursor: pointer; text-decoration: underline;
+}
 
 .joinrow { display: flex; gap: 10px; }
 .joinrow .button { flex: 1; }
@@ -150,6 +166,22 @@
   background: #fff; color: var(--ink-2); box-shadow: inset 0 0 0 2px var(--line), 0 3px 0 var(--line);
 }
 .chip--picked { background: var(--ink); color: #fff; box-shadow: 0 3px 0 rgba(35, 42, 36, 0.35); }
+
+/* ---------- profile ---------- */
+.profile__header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.role-badge {
+  font-family: var(--font-structural); font-weight: 700; font-size: 12px;
+  padding: 3px 10px; border-radius: 999px; color: #fff;
+}
+.role-badge--player { background: var(--ink-3); }
+.role-badge--admin { background: var(--multiply); }
+.role-badge--creator { background: var(--gold); color: var(--ink); }
+
+.profile__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 16px 0 22px; }
+.profile__stat dt { font-family: var(--font-structural); font-weight: 600; font-size: 12px; color: var(--ink-2); margin: 0; }
+.profile__stat dd { font-size: 18px; font-weight: 700; margin: 2px 0 0; }
+
+.profile__section-title { font-size: 16px; font-weight: 700; margin: 4px 0 12px; }
 
 @media (max-width: 520px) {
   .detail-toggle__label { display: none; }

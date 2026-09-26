@@ -43,16 +43,20 @@ export const CAMERA_SHOTS: Record<ShotName, CameraShot> = {
   gameOver: { position: [-3.1, 1.75, 2.4], target: [-0.9, 0.85, 0.35], fov: 45, minimumWidth: 3.2, drift: 0.1 },
 };
 
-/** A match outranks the customize screen: if one is found mid-edit, go to the table. */
-export function selectShot(screen: Screen, customizing: boolean, portrait = false): ShotName {
+/**
+ * A match outranks showing your kid — whether that is the customize screen or the
+ * profile panel (the caller ORs the two together, §11) — if one is found mid-edit or
+ * mid-profile, go to the table.
+ */
+export function selectShot(screen: Screen, showingKid: boolean, portrait = false): ShotName {
   switch (screen) {
     case "game":
       return portrait ? "gamePortrait" : "game";
     case "gameOver":
       return "gameOver";
     case "queue":
-      return customizing ? "customize" : "queue";
+      return showingKid ? "customize" : "queue";
     case "connect":
-      return customizing ? "customize" : "menu";
+      return showingKid ? "customize" : "menu";
   }
 }

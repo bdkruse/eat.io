@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ConnectionLostBanner } from "./ui/overlays/ConnectionLostBanner.js";
 import { OpponentDroppedModal } from "./ui/overlays/OpponentDroppedModal.js";
 import { RejectionToast } from "./ui/overlays/RejectionToast.js";
@@ -10,30 +11,41 @@ import { Fade } from "./ui/Fade.js";
 import { GameHud } from "./ui/GameHud.js";
 import { GameOverPanel } from "./ui/GameOverPanel.js";
 import { HandBar } from "./ui/HandBar.js";
-import { MenuPanel } from "./ui/MenuPanel.js";
+import { MenuPanel, type MenuTab } from "./ui/MenuPanel.js";
+import { ProfilePanel } from "./ui/ProfilePanel.js";
 import { QueuePanel } from "./ui/QueuePanel.js";
 import { TopBar } from "./ui/TopBar.js";
 
 /** Panels over the canvas. Each fades on its own, so screens cross-dissolve as the camera moves. */
 function Interface() {
   const { state } = useGame();
-  const { customizing } = useLocalState();
+  const { customizing, profileOpen } = useLocalState();
+  // Which of the menu's three tabs is showing — lifted up here so the top bar's guest
+  // "Log in" button can switch the menu to it from outside (§11).
+  const [menuTab, setMenuTab] = useState<MenuTab>("guest");
   const screen = selectScreen(state);
   const inMenus = screen === "connect" || screen === "queue";
-  const editing = customizing && inMenus;
+  const editingLook = customizing && inMenus;
+  // The profile panel is reachable from the menu, the queue, and the game-over screen —
+  // everywhere the top bar's profile button shows (hidden only during a game).
+  const viewingProfile = profileOpen && screen !== "game";
+  const showScreenPanel = !editingLook && !viewingProfile;
 
   return (
     <div className="interface">
-      <TopBar showWordmark={screen === "connect" && !editing} />
+      <TopBar showWordmark={screen === "connect" && showScreenPanel} onRequestLogin={() => setMenuTab("login")} />
       <ConnectionLostBanner />
-      <Fade show={screen === "connect" && !editing} className="dock dock--left">
-        <MenuPanel />
+      <Fade show={screen === "connect" && showScreenPanel} className="dock dock--left">
+        <MenuPanel activeTab={menuTab} onTabChange={setMenuTab} />
       </Fade>
-      <Fade show={screen === "queue" && !editing} className="dock dock--left">
+      <Fade show={screen === "queue" && showScreenPanel} className="dock dock--left">
         <QueuePanel />
       </Fade>
-      <Fade show={editing} className="dock dock--left">
+      <Fade show={editingLook} className="dock dock--left">
         <CustomizePanel />
+      </Fade>
+      <Fade show={viewingProfile} className="dock dock--left">
+        <ProfilePanel />
       </Fade>
       <Fade show={screen === "game" || screen === "gameOver"} className="dock dock--top">
         <GameHud />
@@ -41,7 +53,7 @@ function Interface() {
       <Fade show={screen === "game"} className="dock dock--bottom">
         <HandBar />
       </Fade>
-      <Fade show={screen === "gameOver"} className="dock dock--left">
+      <Fade show={screen === "gameOver" && showScreenPanel} className="dock dock--left">
         <GameOverPanel />
       </Fade>
       <RejectionToast />

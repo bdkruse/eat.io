@@ -36,8 +36,9 @@ export interface GameTableProps {
   room: RoomStateMessage | null;
   result: Result | null;
   yourAppearance: Appearance;
-  /** On the customize screen your kid gets up and stands where the camera can see them. */
-  customizing: boolean;
+  /** On the customize screen, or while the profile panel is open, your kid gets up and
+   *  stands where the camera can see them (§11). */
+  showingKid: boolean;
   awaitingYou: boolean;
   selection: Selection;
   targetCount: number;
@@ -51,7 +52,7 @@ export function GameTable({
   room,
   result,
   yourAppearance,
-  customizing,
+  showingKid,
   awaitingYou,
   selection,
   targetCount,
@@ -67,7 +68,7 @@ export function GameTable({
       ? awaitingYou
         ? "think"
         : "idle"
-      : customizing
+      : showingKid
         ? "wave"
         : "idle";
 
@@ -93,7 +94,7 @@ export function GameTable({
         </mesh>
       </group>
 
-      <YourKid appearance={yourAppearance} customizing={customizing && !room} animation={yourAnimation} />
+      <YourKid appearance={yourAppearance} showingKid={showingKid && !room} animation={yourAnimation} />
 
       {room ? (
         <RoomLayer
@@ -143,7 +144,12 @@ function RoomLayer({
   const yourTrays = useEatenTrays(room.you.table);
   const opponentTrays = useEatenTrays(room.opponent.table);
   const biting = yourTrays.biting || opponentTrays.biting;
-  const opponentLook = useMemo(() => appearanceFromName(room.opponent.name), [room.opponent.name]);
+  // A logged-in opponent's saved look wins; otherwise the same name-derived look as a
+  // guest opponent always gets (§11).
+  const opponentLook = useMemo(
+    () => room.opponent.appearance ?? appearanceFromName(room.opponent.name),
+    [room.opponent.appearance, room.opponent.name],
+  );
 
   const opponentAnimation: Animation = result
     ? result.kind === "win"
@@ -260,13 +266,14 @@ function NameTag({ name, ready }: { name: string; ready: boolean }) {
 }
 
 /**
- * Your kid: seated at the near side of the game table, or — on the customize screen —
- * up and standing where the camera can get a good look, walking between the two.
+ * Your kid: seated at the near side of the game table, or — on the customize screen, or
+ * while the profile panel is open — up and standing where the camera can get a good look,
+ * walking between the two.
  */
-function YourKid({ appearance, customizing, animation }: { appearance: Appearance; customizing: boolean; animation: Animation }) {
+function YourKid({ appearance, showingKid, animation }: { appearance: Appearance; showingKid: boolean; animation: Animation }) {
   const group = useRef<Group>(null);
   const turntable = useRef<Group>(null);
-  const target: Vector3Tuple = customizing ? CUSTOMIZE_SPOT : SEAT_POSITION.near;
+  const target: Vector3Tuple = showingKid ? CUSTOMIZE_SPOT : SEAT_POSITION.near;
   const movement = useRef({ walking: false });
 
   useFrame(({ clock }, delta) => {
@@ -284,12 +291,12 @@ function YourKid({ appearance, customizing, animation }: { appearance: Appearanc
       const heading = Math.atan2(dx, dz);
       node.rotation.y = MathUtils.damp(node.rotation.y, nearestAngle(node.rotation.y, heading), 10, delta);
     } else {
-      const facing = customizing ? 0 : SEAT_FACING.near;
+      const facing = showingKid ? 0 : SEAT_FACING.near;
       node.rotation.y = MathUtils.damp(node.rotation.y, nearestAngle(node.rotation.y, facing), 6, delta);
     }
     if (turntable.current) {
       // A slow sway on the customize spot so the whole outfit is seen.
-      const sway = customizing && !walking ? Math.sin(clock.elapsedTime * 0.6) * 0.55 : 0;
+      const sway = showingKid && !walking ? Math.sin(clock.elapsedTime * 0.6) * 0.55 : 0;
       turntable.current.rotation.y = MathUtils.damp(turntable.current.rotation.y, sway, 3, delta);
     }
     movement.current.walking = walking;
@@ -298,7 +305,7 @@ function YourKid({ appearance, customizing, animation }: { appearance: Appearanc
   return (
     <group ref={group} position={SEAT_POSITION.near} rotation={[0, SEAT_FACING.near, 0]}>
       <group ref={turntable}>
-        <WalkAwareKid appearance={appearance} animation={animation} restingPose={customizing ? "stand" : "sit"} movement={movement} />
+        <WalkAwareKid appearance={appearance} animation={animation} restingPose={showingKid ? "stand" : "sit"} movement={movement} />
       </group>
     </group>
   );

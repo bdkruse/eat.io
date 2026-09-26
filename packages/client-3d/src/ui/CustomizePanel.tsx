@@ -116,7 +116,9 @@ export function CustomizePanel() {
           Done
         </button>
       </div>
-      <p className="panel__note">Only you see this look, and it resets when you reload.</p>
+      <p className="panel__note">
+        {state.account ? "Saved to your account." : "Only you see this look, and it resets when you reload."}
+      </p>
     </section>
   );
 }

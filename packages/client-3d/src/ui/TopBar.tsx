@@ -1,4 +1,6 @@
+import { ROLE_LABELS } from "@eat.io/protocol";
 import { useGame } from "../state/GameProvider.js";
+import { selectScreen } from "../state/gameState.js";
 import type { DetailLevel } from "../scene/detail.js";
 import { useLocalState } from "../state/LocalState.js";
 
@@ -7,11 +9,21 @@ const DETAIL_OPTIONS: { level: DetailLevel; label: string }[] = [
   { level: "low", label: "Low" },
 ];
 
-export function TopBar({ showWordmark }: { showWordmark: boolean }) {
+export function TopBar({
+  showWordmark,
+  onRequestLogin,
+}: {
+  showWordmark: boolean;
+  /** Guest's profile button: opens the menu's Log in tab (§11). */
+  onRequestLogin: () => void;
+}) {
   const { state } = useGame();
-  const { detail, setDetail } = useLocalState();
+  const { detail, setDetail, setProfileOpen } = useLocalState();
   const live = state.connection.phase === "connected";
   const label = live ? "Connected" : state.connection.phase === "reconnecting" ? "Reconnecting" : "Offline";
+  // Hidden during a game — there is no room for it, and nothing to do with it there.
+  const showProfileButton = selectScreen(state) !== "game";
+  const account = state.account;
 
   return (
     <header className="topbar">
@@ -19,6 +31,17 @@ export function TopBar({ showWordmark }: { showWordmark: boolean }) {
         eat<span>.io</span>
       </div>
       <div className="topbar__right">
+        {showProfileButton &&
+          (account ? (
+            <button className="profile-button" onClick={() => setProfileOpen(true)}>
+              <span className={`dot dot--role-${account.role}`} title={ROLE_LABELS[account.role]} />
+              {account.username}
+            </button>
+          ) : (
+            <button className="profile-button" onClick={onRequestLogin}>
+              Log in
+            </button>
+          ))}
         <div className="detail-toggle" role="radiogroup" aria-label="Detail">
           <span className="detail-toggle__label">Detail</span>
           {DETAIL_OPTIONS.map((option) => (

@@ -5,12 +5,20 @@ test("the menu shot shows the cafeteria", () => {
   expect(selectShot("connect", false)).toBe("menu");
 });
 
-test("customizing moves the camera to your kid from the menu or the queue", () => {
+test("showing your kid moves the camera to them from the menu or the queue", () => {
   expect(selectShot("connect", true)).toBe("customize");
   expect(selectShot("queue", true)).toBe("customize");
 });
 
-test("a game outranks customizing, so a match found mid-edit goes to the table", () => {
+test("the profile panel shows your kid the same way as customizing does, from the menu or the queue", () => {
+  // selectShot only sees one boolean — the caller ORs "customizing" and "profile open"
+  // together before calling it (§11) — so the profile case is exercised the same as
+  // customizing here.
+  expect(selectShot("connect", true)).toBe("customize");
+  expect(selectShot("queue", true)).toBe("customize");
+});
+
+test("a game outranks showing your kid, so a match found mid-edit or mid-profile goes to the table", () => {
   expect(selectShot("game", true)).toBe("game");
   expect(selectShot("gameOver", true)).toBe("gameOver");
 });

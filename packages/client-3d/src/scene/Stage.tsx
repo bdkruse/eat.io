@@ -29,7 +29,10 @@ export function Stage() {
   const local = useLocalState();
   const screen = selectScreen(state);
   const portrait = usePortrait();
-  const shot = selectShot(screen, local.customizing, portrait);
+  // The camera shows your kid for the customize screen AND for the profile panel — either
+  // reason gets the same shot (§11).
+  const showingKid = local.customizing || local.profileOpen;
+  const shot = selectShot(screen, showingKid, portrait);
   const frozen = selectBoardFrozen(state);
   const awaitingYou = selectAwaitingYou(state);
   const inGame = screen === "game" || screen === "gameOver";
@@ -51,7 +54,7 @@ export function Stage() {
           room={inGame ? state.room : null}
           result={state.result}
           yourAppearance={local.appearance}
-          customizing={local.customizing && !inGame}
+          showingKid={showingKid && !inGame}
           awaitingYou={awaitingYou}
           selection={local.selection}
           targetCount={local.targetCount}
