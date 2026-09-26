@@ -1,5 +1,5 @@
-import { useGame } from "@eat.io/client/state/GameProvider.js";
-import { selectScreen } from "@eat.io/client/state/gameState.js";
+import { useGame } from "../state/GameProvider.js";
+import { selectScreen } from "../state/gameState.js";
 import {
   ACCESSORIES,
   HAIR_COLORS,

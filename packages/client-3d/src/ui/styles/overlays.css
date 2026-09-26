@@ -1,4 +1,4 @@
-/* Styles for the classic client's overlays, reused as-is. */
+/* Toast, connection banner, and opponent-dropped modal (ui/overlays). */
 .banner {
   position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 30;
   background: var(--multiply); color: var(--ink); font-family: var(--font-structural); font-weight: 700;

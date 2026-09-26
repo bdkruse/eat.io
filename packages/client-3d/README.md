@@ -5,8 +5,8 @@ school cafeteria. The cafeteria is the living background of the menu. When a mat
 the menu fades and the camera flies down to a top-down view of the game table. You sit on
 the near side, your opponent on the far side, and the eater sits at the head.
 
-It plays the same game as the React client in `packages/client`, against the same server.
-The React client is unchanged and still runs on its own.
+It is the only client. It renders what the server sends and sends back what the player
+tried. It computes no game state, and every number on screen comes from the server.
 
 ## Run it
 
@@ -16,49 +16,57 @@ npm start            # terminal 1: the game server on :8000
 npm run dev:3d       # terminal 2: Vite on http://localhost:5174
 ```
 
-Open the URL in two browser windows to play both seats. The server field on the menu
-defaults to `ws://localhost:8000`, the same as the classic client. If port 8000 is busy,
-start the server with `PORT=8765 npm start` and type `ws://localhost:8765` in the field.
+Open the URL in two browser windows to play both seats. In development the menu has a
+Server field that defaults to `ws://localhost:8000`. If port 8000 is busy, start the
+server with `PORT=8765 npm start` and type `ws://localhost:8765` in the field.
 
 `ROUND_COUNT=3 npm start` makes a short game.
+
+## Deploy it
+
+Set the server address at build time. A build with `VITE_SERVER_URL` does not show the
+Server field, so players are never asked for a port.
+
+```bash
+VITE_SERVER_URL=wss://play.example.com npm run build --workspace @eat.io/client-3d
+```
+
+The output in `packages/client-3d/dist` is static files for any static host. A page
+served over HTTPS must use a `wss://` address.
 
 ## Stack
 
 - React Three Fiber 9 and drei 10 on three.js 0.186. The scene is React components, so
-  the 3D client reuses the classic client's state layer with no adapter.
+  one React state layer drives both the 3D scene and the panels.
 - Every model is built in code from three.js primitives. There are no model files, image
   files, or runtime network requests. Posters and signs are painted onto canvases.
 - `MeshToonMaterial` with a three-band gradient gives the cel-shaded look. All materials
   come from `src/scene/materials.ts`, so the style stays consistent.
 
-## What it reuses from the classic client
+## Game state and connection
 
-The `@eat.io/client/*` alias points at `packages/client/src`. The 3D client imports these
-modules directly, so there is one copy of each:
+These modules came from the earlier 2D client, which was removed. They are still the
+tested core of the client.
 
 | Module | Purpose |
 |---|---|
-| `state/GameProvider.tsx`, `gameReducer.ts`, `gameState.ts` | Server messages become one state object |
+| `state/gameReducer.ts`, `gameState.ts`, `GameProvider.tsx` | One pure reducer turns server messages into one state object |
 | `state/selection.ts` | Card and tray selection rules |
-| `connection/*` | Socket lifecycle and reconnect |
-| `food/foodLayout.ts` | Food placement that never rearranges |
-| `components/board/useScorePop.ts` | The score pop that never delays state |
-| `components/overlays/*` | Toast, connection banner, opponent-dropped modal |
-
-The one exception is `useEatenTrays`, which has its own copy in `src/hooks/`. The classic
-version can keep an eaten tray forever. A second table update inside its 600 ms window
-cancels the removal. In 3D that stuck tray leaves the eater chomping for
-the rest of the game. The classic client still has this bug.
-
-The 3D client adds presentation only. It computes no game state, and every number on
-screen comes from the server.
+| `connection/*` | Socket lifecycle, message validation, reconnect with backoff |
+| `food/foodLayout.ts` | Stable food placement: a value change never moves the other food |
+| `hooks/useEatenTrays.ts`, `useScorePop.ts` | Motion that never delays state |
+| `ui/overlays/*` | Toast, connection banner, opponent-dropped modal |
 
 ## Layout
 
 ```
 src/
   App.tsx                 providers, the canvas, and the panels over it
-  state/LocalState.tsx    appearance, customize screen, and this turn's selection
+  config.ts               the server address, from VITE_SERVER_URL
+  connection/             the socket and its reconnect state machine
+  state/                  the game reducer, and LocalState for appearance and selection
+  food/                   deterministic food placement
+  hooks/                  eaten-tray and score-pop motion, retained panel data
   appearance/             kid appearance options and seeded generation
   scene/
     Stage.tsx             the canvas; picks the camera shot from the screen

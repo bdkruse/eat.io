@@ -1,5 +1,5 @@
-import { useScorePop } from "@eat.io/client/components/board/useScorePop.js";
-import { useGame } from "@eat.io/client/state/GameProvider.js";
+import { useScorePop } from "../hooks/useScorePop.js";
+import { useGame } from "../state/GameProvider.js";
 import { useRetained } from "../hooks/useRetained.js";
 
 function ScoreCard({ side, name, score, ready }: { side: "you" | "opponent"; name: string; score: number; ready: boolean }) {

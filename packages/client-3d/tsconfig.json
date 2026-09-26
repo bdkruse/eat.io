@@ -10,8 +10,7 @@
     "declaration": false,
     "noEmit": true,
     "paths": {
-      "@eat.io/protocol": ["../protocol/src/index.ts"],
-      "@eat.io/client/*": ["../client/src/*"]
+      "@eat.io/protocol": ["../protocol/src/index.ts"]
     }
   },
   "include": ["src/**/*", "test/**/*", "vite.config.ts"]

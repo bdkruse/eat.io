@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { MathUtils, type Group } from "three";
 import type { Result, RoomStateMessage, TrayView } from "@eat.io/protocol";
 import { useEatenTrays } from "../../hooks/useEatenTrays.js";
-import type { Selection } from "@eat.io/client/state/selection.js";
+import type { Selection } from "../../state/selection.js";
 import { appearanceFromName, type Appearance } from "../../appearance/appearance.js";
 import { LunchTable } from "../cafeteria/LunchTable.js";
 import { CUSTOMIZE_SPOT } from "../cameraShots.js";

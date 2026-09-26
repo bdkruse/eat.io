@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { initialServerUrl } from "@eat.io/client/config.js";
-import { useGame } from "@eat.io/client/state/GameProvider.js";
+import { initialServerUrl, serverIsConfigured } from "../config.js";
+import { useGame } from "../state/GameProvider.js";
 import { useLocalState } from "../state/LocalState.js";
 
 export function MenuPanel() {
@@ -8,6 +8,7 @@ export function MenuPanel() {
   const { setCustomizing } = useLocalState();
   const [serverUrl, setServerUrl] = useState(initialServerUrl());
   const [roomCode, setRoomCode] = useState("");
+  const askForServer = !serverIsConfigured();
 
   const connected = state.connection.phase === "connected" && state.identity !== null;
   const ready = state.name.trim().length > 0 && serverUrl.trim().length > 0;
@@ -31,7 +32,7 @@ export function MenuPanel() {
         />
       </label>
 
-      {!connected && (
+      {!connected && askForServer && (
         <label className="field">
           <span className="field__label">Server</span>
           <input className="field__input field__input--quiet" value={serverUrl} onChange={(event) => setServerUrl(event.target.value)} />

@@ -1,7 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { useEffect, useState } from "react";
-import { useGame } from "@eat.io/client/state/GameProvider.js";
-import { selectAwaitingYou, selectBoardFrozen, selectScreen } from "@eat.io/client/state/gameState.js";
+import { useGame } from "../state/GameProvider.js";
+import { selectAwaitingYou, selectBoardFrozen, selectScreen } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { Cafeteria } from "./cafeteria/Cafeteria.js";
 import { CameraRig } from "./CameraRig.js";

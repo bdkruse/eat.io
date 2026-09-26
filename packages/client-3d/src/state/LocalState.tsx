@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useGame } from "@eat.io/client/state/GameProvider.js";
-import { selectYourCard } from "@eat.io/client/state/gameState.js";
+import { useGame } from "./GameProvider.js";
+import { selectYourCard } from "./gameState.js";
 import {
   emptySelection,
   isSubmittable,
   selectCard,
   toggleTray,
   type Selection,
-} from "@eat.io/client/state/selection.js";
+} from "./selection.js";
 import { DEFAULT_APPEARANCE, type Appearance } from "../appearance/appearance.js";
 import type { DetailLevel } from "../scene/detail.js";
 

@@ -1,4 +1,4 @@
-import type { Screen } from "@eat.io/client/state/gameState.js";
+import type { Screen } from "../state/gameState.js";
 import type { Vector3Tuple } from "./game/tableLayout.js";
 
 export type ShotName = "menu" | "customize" | "queue" | "game" | "gamePortrait" | "gameOver";

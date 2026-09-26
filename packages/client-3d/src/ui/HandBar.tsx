@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import type { CardView } from "@eat.io/protocol";
-import { useGame } from "@eat.io/client/state/GameProvider.js";
-import { selectAwaitingYou, selectBoardFrozen } from "@eat.io/client/state/gameState.js";
+import { useGame } from "../state/GameProvider.js";
+import { selectAwaitingYou, selectBoardFrozen } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { RoundChip } from "./GameHud.js";
 import { useRetained } from "../hooks/useRetained.js";

@@ -1,8 +1,8 @@
-import { ConnectionLostBanner } from "@eat.io/client/components/overlays/ConnectionLostBanner.js";
-import { OpponentDroppedModal } from "@eat.io/client/components/overlays/OpponentDroppedModal.js";
-import { RejectionToast } from "@eat.io/client/components/overlays/RejectionToast.js";
-import { GameProvider, useGame } from "@eat.io/client/state/GameProvider.js";
-import { selectScreen } from "@eat.io/client/state/gameState.js";
+import { ConnectionLostBanner } from "./ui/overlays/ConnectionLostBanner.js";
+import { OpponentDroppedModal } from "./ui/overlays/OpponentDroppedModal.js";
+import { RejectionToast } from "./ui/overlays/RejectionToast.js";
+import { GameProvider, useGame } from "./state/GameProvider.js";
+import { selectScreen } from "./state/gameState.js";
 import { Stage } from "./scene/Stage.js";
 import { LocalStateProvider, useLocalState } from "./state/LocalState.js";
 import { CustomizePanel } from "./ui/CustomizePanel.js";

@@ -1,9 +1,9 @@
-import { layoutTray, type Well } from "@eat.io/client/food/foodLayout.js";
+import { layoutTray, type Well } from "../../food/foodLayout.js";
 import { hashString } from "../../lib/seededRandom.js";
 
 /**
- * 3D food on a tray. Quantity IS the value — one item per point — placed with the classic
- * client's `layoutTray`, so placement depends only on (trayId, well, slot) and a tray gains
+ * 3D food on a tray. Quantity IS the value — one item per point — placed with
+ * `layoutTray`, so placement depends only on (trayId, well, slot) and a tray gains
  * or loses food without the rest moving.
  *
  * Wells are in millimeters, in the tray's local frame: x along the table, z across it.
@@ -22,7 +22,7 @@ export type FoodKind = (typeof FOOD_KINDS)[number];
 const MAINS: readonly FoodKind[] = ["nugget", "tot", "meatball"];
 const SIDES: readonly FoodKind[] = ["carrot", "broccoli", "grape", "corn"];
 
-/** One large main well and two small side wells — the same 12 + 2 + 2 as the classic tray. */
+/** One large main well and two small side wells — 12 + 2 + 2 slots. */
 export const TRAY_WELLS: readonly PlacedWell[] = [
   { width: 240, height: 270, columns: 3, rows: 4, centerX: -0.075, centerZ: 0, menu: MAINS },
   { width: 140, height: 120, columns: 2, rows: 1, centerX: 0.14, centerZ: -0.075, menu: SIDES },

@@ -8,7 +8,7 @@ export type HairStyle = (typeof HAIR_STYLES)[number];
 export const HAIR_COLORS = ["#2b2220", "#3d2a1e", "#5a3825", "#8a3b1f", "#c4622d", "#d9b25f"] as const;
 
 export const SHIRT_COLORS = [
-  "#d94f3d", // tomato — the "you" accent in the classic client
+  "#d94f3d", // tomato — the "you" accent
   "#4a7fa5", // blue — the "opponent" accent
   "#5f9e4a",
   "#e8a33d",

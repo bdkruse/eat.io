@@ -8,10 +8,9 @@ const EATEN_HOLD_MS = 600;
  * eater. State itself is never delayed: `trays` is always the server's current list; this
  * only adds the ghost of the one that just left.
  *
- * Same contract as the classic client's hook, with one difference: each ghost owns its own
- * timer, which only unmounting cancels. In the classic version a second table update inside
- * the 600ms window cancelled the pending removal, so a ghost could stay forever — and in
- * 3D that leaves the eater chomping for the rest of the game.
+ * Each ghost owns its own timer, which only unmounting cancels. An earlier version cancelled
+ * the pending removal on any table update inside the 600ms window, so a ghost could stay
+ * forever — and in 3D that leaves the eater chomping for the rest of the game.
  */
 export function useEatenTrays(trays: TrayView[]): {
   rendered: TrayView[];

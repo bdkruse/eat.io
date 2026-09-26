@@ -1,4 +1,4 @@
-import { useGame } from "@eat.io/client/state/GameProvider.js";
+import { useGame } from "../state/GameProvider.js";
 import { useLocalState } from "../state/LocalState.js";
 
 function Dots() {

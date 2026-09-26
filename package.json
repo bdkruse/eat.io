@@ -5,18 +5,16 @@
   "workspaces": [
     "packages/protocol",
     "packages/server",
-    "packages/client",
     "packages/client-3d"
   ],
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "typecheck": "tsc -b && tsc -p packages/client && tsc -p packages/client-3d",
+    "typecheck": "tsc -b && tsc -p packages/client-3d",
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx watch packages/server/src/index.ts",
-    "dev:client": "npm run dev --workspace @eat.io/client",
     "dev:3d": "npm run dev --workspace @eat.io/client-3d",
     "start": "tsx packages/server/src/index.ts"
   },
