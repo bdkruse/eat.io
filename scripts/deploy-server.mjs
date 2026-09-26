@@ -19,5 +19,7 @@ run("bonto", ["restart", app]);
 console.log(`Deployed to https://${app}.bonto.run (WebSocket: wss://${app}.bonto.run)`);
 console.log(
   "Reminder: the accounts database lives at data/eatio.sqlite on the host and is never " +
-    "uploaded by this script. See packages/server/README.md for seeding a fresh host.",
+    "uploaded by this script. See packages/server/README.md for seeding a fresh host. " +
+    "Uploading a seed file there after go-live replaces the whole database and deletes " +
+    "every account and stat created since.",
 );

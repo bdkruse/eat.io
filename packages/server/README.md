@@ -84,6 +84,11 @@ bonto files upload eatio data/eatio.sqlite /tmp/eatio-seed.sqlite
 npm run deploy:server
 ```
 
+After go-live, running that upload again replaces the whole host database file. It deletes
+every account and stat created since, not just the seed accounts. To add or promote an
+account later without losing real accounts, ask the owner for a controlled change instead
+of re-uploading. There is no in-app admin tool for this yet.
+
 ## Architecture
 
 Four layers; dependencies point downward only.
