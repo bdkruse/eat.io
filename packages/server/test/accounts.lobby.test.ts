@@ -158,6 +158,22 @@ test("registering while queued is BUSY", () => {
   expect(accounts.findByUsername("Riley_1")).toBeNull();
 });
 
+test("a session that is already logged in cannot register or log in again", () => {
+  const { lobby, accounts } = makeLobby();
+  accounts.register("Sam_1", PASSWORD);
+  const riley = registered(lobby, "Riley_1");
+  const LOG_OUT_FIRST = { type: "accountError", code: "BUSY", message: "Log out first." } as const;
+
+  lobby.handleMessage(riley.socket, { type: "accountRegister", username: "Riley_2", password: PASSWORD });
+  expect(riley.out[riley.out.length - 1]).toEqual(LOG_OUT_FIRST);
+  expect(accounts.findByUsername("Riley_2")).toBeNull();
+
+  lobby.handleMessage(riley.socket, { type: "accountLogin", username: "Sam_1", password: PASSWORD });
+  expect(riley.out[riley.out.length - 1]).toEqual(LOG_OUT_FIRST);
+  expect(countOf(riley.out, "accountLoggedIn")).toBe(1);
+  expect(riley.socket.session?.name).toBe("Riley_1");
+});
+
 test("hello with a valid login token resumes the account without a new token", () => {
   const { lobby, time, accounts } = makeLobby();
   const registration = accounts.register("Riley_1", PASSWORD);

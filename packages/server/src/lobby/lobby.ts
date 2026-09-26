@@ -44,6 +44,9 @@ const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
   BUSY: "Leave the queue or the game first.",
 };
 
+/** BUSY also covers a register or login from a session that already has an account. */
+const LOG_OUT_FIRST_MESSAGE = "Log out first.";
+
 export class Lobby {
   private sessions = new Map<string, Session>();
   private byToken = new Map<string, Session>();
@@ -200,7 +203,9 @@ export class Lobby {
   }
 
   private handleRegister(session: Session, username: string, password: string): void {
-    if (this.refuseWhileBusy(session) || this.refuseWhileRateLimited(session)) return;
+    if (this.refuseWhileBusy(session) || this.refuseWhileLoggedIn(session) || this.refuseWhileRateLimited(session)) {
+      return;
+    }
     const registration = this.deps.accounts.register(username, password);
     if (!registration.ok) {
       this.sendAccountError(session, registration.code);
@@ -210,7 +215,9 @@ export class Lobby {
   }
 
   private handleLogin(session: Session, username: string, password: string): void {
-    if (this.refuseWhileBusy(session) || this.refuseWhileRateLimited(session)) return;
+    if (this.refuseWhileBusy(session) || this.refuseWhileLoggedIn(session) || this.refuseWhileRateLimited(session)) {
+      return;
+    }
     const account = this.deps.accounts.verifyLogin(username, password);
     if (!account) {
       session.loginGuard.recordFailure();
@@ -282,14 +289,21 @@ export class Lobby {
     return busy;
   }
 
+  /** One account per session: switching accounts, or registering another, needs a logout first. */
+  private refuseWhileLoggedIn(session: Session): boolean {
+    const loggedIn = session.accountId !== null;
+    if (loggedIn) this.sendAccountError(session, "BUSY", LOG_OUT_FIRST_MESSAGE);
+    return loggedIn;
+  }
+
   private refuseWhileRateLimited(session: Session): boolean {
     const blocked = session.loginGuard.isBlocked();
     if (blocked) this.sendAccountError(session, "RATE_LIMITED");
     return blocked;
   }
 
-  private sendAccountError(session: Session, code: AccountErrorCode): void {
-    session.send({ type: "accountError", code, message: ACCOUNT_ERROR_MESSAGES[code] });
+  private sendAccountError(session: Session, code: AccountErrorCode, message = ACCOUNT_ERROR_MESSAGES[code]): void {
+    session.send({ type: "accountError", code, message });
   }
 
   /** Two sessions of the same account are never matched against each other. */
