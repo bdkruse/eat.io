@@ -28,7 +28,7 @@ const steamGeometry = () => sharedGeometry("steam", () => new SphereGeometry(0.0
 const staffLook = (seed: number): Appearance => ({
   ...randomAppearance(seed),
   hairStyle: "buzz",
-  hairColor: "#ecebe6", // a hairnet
+  hairColor: "#d9b25f", // lightest option on the palette, closest to a hairnet's pale mesh
   shirtColor: "#4a7fa5",
   pantsColor: "#444a52",
   accessory: seed % 2 === 0 ? "glasses" : "none",

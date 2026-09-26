@@ -28,3 +28,12 @@ export function initialServerUrl(): string {
 export function serverIsConfigured(): boolean {
   return configuredServerUrl(buildEnv()) !== null;
 }
+
+/**
+ * Where an auto-resume on load should connect: a deployed build always resumes to its own
+ * server, but local development resumes to whatever address was last used (a non-default
+ * port stays reachable across a reload), falling back to the usual default (§11).
+ */
+export function resumeServerUrl(storedServerUrl: string | null): string {
+  return serverIsConfigured() ? initialServerUrl() : (storedServerUrl ?? initialServerUrl());
+}

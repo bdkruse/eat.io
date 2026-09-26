@@ -1,36 +1,21 @@
+import {
+  ACCESSORIES,
+  HAIR_COLORS,
+  HAIR_STYLES,
+  PANTS_COLORS,
+  SHIRT_COLORS,
+  SKIN_TONES,
+  type Accessory,
+  type Appearance,
+  type HairStyle,
+} from "@eat.io/protocol";
 import { createRandom, hashString } from "../lib/seededRandom.js";
 
-export const SKIN_TONES = ["#f6d7bf", "#eec19b", "#d9a47a", "#b87a4f", "#8d5634", "#5e3a24"] as const;
-
-export const HAIR_STYLES = ["short", "bob", "curly", "ponytail", "buzz", "puffs"] as const;
-export type HairStyle = (typeof HAIR_STYLES)[number];
-
-export const HAIR_COLORS = ["#2b2220", "#3d2a1e", "#5a3825", "#8a3b1f", "#c4622d", "#d9b25f"] as const;
-
-export const SHIRT_COLORS = [
-  "#d94f3d", // tomato — the "you" accent
-  "#4a7fa5", // blue — the "opponent" accent
-  "#5f9e4a",
-  "#e8a33d",
-  "#7d5ba6",
-  "#3e9c95",
-  "#e07a9a",
-  "#f4f1ea",
-] as const;
-
-export const PANTS_COLORS = ["#3f5a7a", "#b59a6d", "#444a52", "#6b7048"] as const;
-
-export const ACCESSORIES = ["none", "glasses", "cap", "headband", "beanie"] as const;
-export type Accessory = (typeof ACCESSORIES)[number];
-
-export interface Appearance {
-  skinTone: string;
-  hairStyle: HairStyle;
-  hairColor: string;
-  shirtColor: string;
-  pantsColor: string;
-  accessory: Accessory;
-}
+// The option lists and the Appearance shape are the protocol's to define (the server
+// validates against the very same schema) — this module re-exports them so the rest of
+// the client keeps importing appearance concerns from one place.
+export { ACCESSORIES, HAIR_COLORS, HAIR_STYLES, PANTS_COLORS, SHIRT_COLORS, SKIN_TONES };
+export type { Accessory, Appearance, HairStyle };
 
 /** What the player starts as before touching the customize screen. */
 export const DEFAULT_APPEARANCE: Appearance = {
@@ -56,8 +41,9 @@ export function randomAppearance(seed: number): Appearance {
 }
 
 /**
- * The opponent's look is not on the wire (customization is local only), so it is derived
- * from their name — the same opponent always looks the same.
+ * The opponent's look is not on the wire for a guest (customization is local only), so it
+ * is derived from their name — the same opponent always looks the same. A logged-in
+ * opponent's saved appearance takes precedence over this (§11), decided by the caller.
  */
 export function appearanceFromName(name: string): Appearance {
   return randomAppearance(hashString(`opponent:${name}`));

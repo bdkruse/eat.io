@@ -1,6 +1,15 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useGame } from "./GameProvider.js";
-import { selectYourCard } from "./gameState.js";
+import { selectYourCard, type AppState } from "./gameState.js";
 import {
   emptySelection,
   isSubmittable,
@@ -12,15 +21,18 @@ import { DEFAULT_APPEARANCE, type Appearance } from "../appearance/appearance.js
 import type { DetailLevel } from "../scene/detail.js";
 
 /**
- * State that belongs to this browser tab only and never reaches the server: how your kid
- * looks, whether the customize screen is open, and what you have picked this turn.
- * Customization deliberately does not persist.
+ * State that belongs to this browser tab only and never reaches the server on its own —
+ * how your kid looks, whether the customize or profile panel is open, and what you have
+ * picked this turn. The look itself IS sent to the server at the moments §11 calls for
+ * (connecting, logging in, and pressing Done), but the decision to do so lives here.
  */
 export interface LocalStateApi {
   appearance: Appearance;
   setAppearance: (next: Appearance) => void;
   customizing: boolean;
   setCustomizing: (open: boolean) => void;
+  profileOpen: boolean;
+  setProfileOpen: (open: boolean) => void;
   /** How much of the room to draw; low trades crowd and shadows for frame rate. */
   detail: DetailLevel;
   setDetail: (next: DetailLevel) => void;
@@ -37,17 +49,40 @@ export interface LocalStateApi {
 const LocalStateContext = createContext<LocalStateApi | null>(null);
 
 export function LocalStateProvider({ children }: { children: ReactNode }) {
-  const { state, submitTurn, noteLocalRejection } = useGame();
+  const { state, submitTurn, noteLocalRejection, setAppearance: sendAppearanceToServer } = useGame();
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
-  const [customizing, setCustomizing] = useState(false);
+  const [customizing, setCustomizingState] = useState(false);
+  const [profileOpen, setProfileOpenState] = useState(false);
   const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
 
-  // A match found mid-edit takes you to the table; the customize screen must not reappear
-  // when that game ends.
+  const connected = state.connection.phase === "connected";
+
+  // Opening one closes the other — the customize screen and the profile panel never
+  // both show at once.
+  const setCustomizing = useCallback(
+    (open: boolean) => {
+      if (open) setProfileOpenState(false);
+      setCustomizingState(open);
+      // Done, while connected: a guest's look is shared, a logged-in player's is saved (§11).
+      if (!open && connected) sendAppearanceToServer(appearance);
+    },
+    [connected, appearance, sendAppearanceToServer],
+  );
+
+  const setProfileOpen = useCallback((open: boolean) => {
+    if (open) setCustomizingState(false);
+    setProfileOpenState(open);
+  }, []);
+
+  // A match found mid-edit takes you to the table; neither panel may reappear once
+  // seated. This is not "Done", so it sends nothing of its own.
   const inRoom = state.room !== null;
   useEffect(() => {
-    if (inRoom) setCustomizing(false);
+    if (inRoom) {
+      setCustomizingState(false);
+      setProfileOpenState(false);
+    }
   }, [inRoom]);
 
   const roundIndex = state.room?.roundIndex ?? null;
@@ -55,6 +90,39 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSelection(emptySelection);
   }, [roundIndex]);
+
+  // A freshly connected guest shares its local look, so the opponent sees it too. A
+  // connection that turns out to be a login instead is handled by the effect below, once
+  // the account itself arrives.
+  const identityPlayerId = state.identity?.playerId ?? null;
+  const previousIdentityRef = useRef<string | null>(null);
+  useEffect(() => {
+    const wasDisconnected = previousIdentityRef.current === null;
+    if (wasDisconnected && identityPlayerId !== null && state.account === null) {
+      sendAppearanceToServer(appearance);
+    }
+    previousIdentityRef.current = identityPlayerId;
+    // Only the moment identity is newly established matters here; `appearance` is read at
+    // that moment, not watched, so editing your look afterward must not re-fire this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [identityPlayerId, state.account]);
+
+  // Logging in replaces the local look with the account's saved one. A brand-new account
+  // has none yet, so it is seeded with whatever look was already in use instead (§11).
+  const previousAccountRef = useRef<AppState["account"]>(null);
+  useEffect(() => {
+    const previousAccount = previousAccountRef.current;
+    if (previousAccount === null && state.account !== null) {
+      if (state.account.appearance) {
+        setAppearance(state.account.appearance);
+      } else {
+        sendAppearanceToServer(appearance);
+      }
+    }
+    previousAccountRef.current = state.account;
+    // `appearance` is read at the moment of transition, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.account]);
 
   const targetCount = selectYourCard(state, selection.cardInstanceId)?.targets ?? 0;
   const ready = isSubmittable(selection, targetCount);
@@ -87,6 +155,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       setAppearance,
       customizing,
       setCustomizing,
+      profileOpen,
+      setProfileOpen,
       detail,
       setDetail,
       selection,
@@ -97,7 +167,20 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       clearSelection: () => setSelection(emptySelection),
       endTurn,
     }),
-    [appearance, customizing, detail, selection, targetCount, ready, chooseCard, clickTray, endTurn],
+    [
+      appearance,
+      customizing,
+      setCustomizing,
+      profileOpen,
+      setProfileOpen,
+      detail,
+      selection,
+      targetCount,
+      ready,
+      chooseCard,
+      clickTray,
+      endTurn,
+    ],
   );
 
   return <LocalStateContext.Provider value={api}>{children}</LocalStateContext.Provider>;

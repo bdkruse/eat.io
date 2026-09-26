@@ -15,7 +15,7 @@ import {
 
 export interface UseConnection {
   connection: ConnectionState;
-  connect(url: string, name: string): void;
+  connect(url: string, name: string, loginToken?: string): void;
   disconnect(): void;
   send(msg: ClientMessage): void;
 }
@@ -29,7 +29,7 @@ export function useConnection(
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRef = useRef<string | null>(null);
-  const targetRef = useRef<{ url: string; name: string } | null>(null);
+  const targetRef = useRef<{ url: string; name: string; loginToken?: string } | null>(null);
   const wantOpenRef = useRef(false);
   const stateRef = useRef<ConnectionState>(initialConnectionState);
 
@@ -58,14 +58,16 @@ export function useConnection(
 
     socket.addEventListener("open", () => {
       applyEvent({ type: "opened" });
-      const hello: ClientMessage = sessionRef.current
-        ? {
-            type: "hello",
-            protocolVersion: PROTOCOL_VERSION,
-            name: target.name,
-            sessionToken: sessionRef.current,
-          }
-        : { type: "hello", protocolVersion: PROTOCOL_VERSION, name: target.name };
+      // A reconnect resends both tokens it has — sessionToken to reclaim the same
+      // in-progress connection, loginToken to resume the account — on every open, not
+      // just the first (§11: a stored login token must survive a dropped socket too).
+      const hello: Extract<ClientMessage, { type: "hello" }> = {
+        type: "hello",
+        protocolVersion: PROTOCOL_VERSION,
+        name: target.name,
+      };
+      if (sessionRef.current) hello.sessionToken = sessionRef.current;
+      if (target.loginToken) hello.loginToken = target.loginToken;
       socket.send(JSON.stringify(hello));
     });
 
@@ -101,8 +103,8 @@ export function useConnection(
   }, [applyEvent]);
 
   const connect = useCallback(
-    (url: string, name: string) => {
-      targetRef.current = { url, name };
+    (url: string, name: string, loginToken?: string) => {
+      targetRef.current = { url, name, ...(loginToken !== undefined ? { loginToken } : {}) };
       wantOpenRef.current = true;
       sessionRef.current = null; // a fresh connect is a new session, not a reconnect
       openSocket();

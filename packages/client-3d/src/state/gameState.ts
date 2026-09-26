@@ -1,4 +1,11 @@
-import type { CardView, RejectionCode, Result, RoomStateMessage } from "@eat.io/protocol";
+import type {
+  AccountErrorCode,
+  CardView,
+  Profile,
+  RejectionCode,
+  Result,
+  RoomStateMessage,
+} from "@eat.io/protocol";
 import { initialConnectionState, type ConnectionState } from "../connection/connectionState.js";
 
 export interface Rejection {
@@ -7,6 +14,19 @@ export interface Rejection {
   code: RejectionCode | "LOCAL";
   message: string;
   /** Monotonic, so the toast can re-trigger on a repeat of the same code without a clock. */
+  seq: number;
+}
+
+export interface AccountErrorState {
+  code: AccountErrorCode;
+  message: string;
+  /** Monotonic, so the toast can re-trigger on a repeat of the same code without a clock. */
+  seq: number;
+}
+
+export interface AccountNotice {
+  text: string;
+  /** Monotonic, so a repeat of the same notice can re-trigger without a clock. */
   seq: number;
 }
 
@@ -22,6 +42,10 @@ export interface AppState {
   result: Result | null;
   rejection: Rejection | null;
   opponentDropped: { graceEndsAt: number } | null;
+  /** The logged-in player's profile, or null for a guest. Survives reconnects (§11). */
+  account: Profile | null;
+  accountError: AccountErrorState | null;
+  accountNotice: AccountNotice | null;
 }
 
 export const initialAppState: AppState = {
@@ -34,6 +58,9 @@ export const initialAppState: AppState = {
   result: null,
   rejection: null,
   opponentDropped: null,
+  account: null,
+  accountError: null,
+  accountNotice: null,
 };
 
 export type Screen = "connect" | "queue" | "game" | "gameOver";

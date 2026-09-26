@@ -338,7 +338,7 @@ function Janitor({ position }: { position: [number, number, number] }) {
   return (
     <group position={position}>
       <Kid
-        appearance={{ ...randomAppearance(808), shirtColor: "#6b7048", pantsColor: "#444a52", hairStyle: "short", accessory: "cap" }}
+        appearance={{ ...randomAppearance(808), shirtColor: "#5f9e4a", pantsColor: "#444a52", hairStyle: "short", accessory: "cap" }}
         pose="stand"
         animation="carry"
         scale={1.3}

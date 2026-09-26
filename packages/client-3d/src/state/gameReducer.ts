@@ -9,7 +9,8 @@ export type Action =
   | { kind: "localRejection"; message: string }
   | { kind: "playAgain" }
   | { kind: "backToMenu" }
-  | { kind: "dismissRejection" };
+  | { kind: "dismissRejection" }
+  | { kind: "dismissAccountError" };
 
 /** Everything a new room must not inherit from the previous one (§2.5). */
 const CLEARED_FOR_NEW_ROOM = {
@@ -44,6 +45,8 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...initialAppState, connection: state.connection, name: state.name };
     case "dismissRejection":
       return { ...state, rejection: null };
+    case "dismissAccountError":
+      return { ...state, accountError: null };
     default: {
       const never: never = action;
       return never;
@@ -122,6 +125,35 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
 
     case "pong":
       return state; // liveness only; handled so the switch stays exhaustive
+
+    case "accountLoggedIn":
+      // A fresh login or a token resume — either way, any earlier account error is moot.
+      return { ...state, account: msg.profile, accountError: null };
+
+    case "accountLoggedOut":
+      return { ...state, account: null };
+
+    case "accountError":
+      return {
+        ...state,
+        accountError: {
+          code: msg.code,
+          message: msg.message,
+          seq: (state.accountError?.seq ?? 0) + 1,
+        },
+      };
+
+    case "profile":
+      return { ...state, account: msg.profile };
+
+    case "passwordChanged":
+      return {
+        ...state,
+        accountNotice: {
+          text: "Password changed.",
+          seq: (state.accountNotice?.seq ?? 0) + 1,
+        },
+      };
 
     default: {
       const never: never = msg;

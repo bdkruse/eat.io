@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import type { RoomStateMessage, ServerMessage } from "@eat.io/protocol";
+import type { Profile, RoomStateMessage, ServerMessage } from "@eat.io/protocol";
 import { initialAppState, type AppState } from "../src/state/gameState.js";
 import { gameReducer } from "../src/state/gameReducer.js";
 
@@ -15,8 +15,21 @@ const room = (over: Partial<RoomStateMessage> = {}): RoomStateMessage => ({
   roundIndex: 0,
   roundCount: 10,
   deadlineAt: 20000,
-  you: { seat: "a", name: "Riley", score: 0, submitted: false, table: [], hand: [] },
-  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, handCount: 5, table: [] },
+  you: { seat: "a", name: "Riley", score: 0, submitted: false, appearance: null, table: [], hand: [] },
+  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, appearance: null, handCount: 5, table: [] },
+  ...over,
+});
+
+const profile = (over: Partial<Profile> = {}): Profile => ({
+  username: "Riley",
+  role: "player",
+  permissions: [],
+  appearance: null,
+  pointsScored: 0,
+  gamesPlayed: 0,
+  gamesWon: 0,
+  createdAt: 1_700_000_000_000,
+  lastLoginAt: null,
   ...over,
 });
 
@@ -31,7 +44,7 @@ test("roomState replaces the board wholesale rather than merging", () => {
     first,
     room({
       roundIndex: 4,
-      you: { seat: "a", name: "Riley", score: 9, submitted: true, table: [], hand: [] },
+      you: { seat: "a", name: "Riley", score: 9, submitted: true, appearance: null, table: [], hand: [] },
     }),
   );
   expect(second.room?.roundIndex).toBe(4);
@@ -173,4 +186,83 @@ test("a guest joining by code lands in the room with no code left showing", () =
   const state = play(welcomed(), { type: "roomJoinedPrivate", code: "0427" }, room());
   expect(state.privateCode).toBeNull();
   expect(state.room).not.toBeNull();
+});
+
+test("accountLoggedIn stores the profile and clears a lingering account error", () => {
+  let state = server(welcomed(), {
+    type: "accountError",
+    code: "BAD_CREDENTIALS",
+    message: "nope",
+  });
+  state = server(state, { type: "accountLoggedIn", profile: profile() });
+  expect(state.account).toEqual(profile());
+  expect(state.accountError).toBeNull();
+});
+
+test("profile replaces the stored account", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = server(state, { type: "profile", profile: profile({ pointsScored: 40 }) });
+  expect(state.account?.pointsScored).toBe(40);
+});
+
+test("accountLoggedOut clears the account", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = server(state, { type: "accountLoggedOut", reason: "requested" });
+  expect(state.account).toBeNull();
+});
+
+test("accountError surfaces and each one re-triggers via an incrementing seq", () => {
+  let state = server(welcomed(), {
+    type: "accountError",
+    code: "USERNAME_TAKEN",
+    message: "That name is taken.",
+  });
+  expect(state.accountError).toMatchObject({
+    code: "USERNAME_TAKEN",
+    message: "That name is taken.",
+    seq: 1,
+  });
+  state = server(state, {
+    type: "accountError",
+    code: "USERNAME_TAKEN",
+    message: "That name is taken.",
+  });
+  expect(state.accountError?.seq).toBe(2);
+});
+
+test("passwordChanged surfaces a one-shot notice", () => {
+  const state = server(welcomed(), { type: "passwordChanged" });
+  expect(state.accountNotice).toMatchObject({ text: "Password changed.", seq: 1 });
+});
+
+test("dismissAccountError clears the error without touching the account", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = server(state, { type: "accountError", code: "WRONG_PASSWORD", message: "no" });
+  state = gameReducer(state, { kind: "dismissAccountError" });
+  expect(state.accountError).toBeNull();
+  expect(state.account).toEqual(profile());
+});
+
+test("backToMenu clears the account, its error, and any notice", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = server(state, { type: "passwordChanged" });
+  state = gameReducer(state, { kind: "backToMenu" });
+  expect(state.account).toBeNull();
+  expect(state.accountError).toBeNull();
+  expect(state.accountNotice).toBeNull();
+});
+
+test("a reconnect's fresh welcome does not clear the logged-in account", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = server(state, { type: "welcome", playerId: "p1", sessionToken: "tok2" });
+  expect(state.account).toEqual(profile());
+});
+
+test("a connection-phase change does not clear the logged-in account", () => {
+  let state = server(welcomed(), { type: "accountLoggedIn", profile: profile() });
+  state = gameReducer(state, {
+    kind: "connection",
+    state: { phase: "reconnecting", error: null, attempt: 1 },
+  });
+  expect(state.account).toEqual(profile());
 });

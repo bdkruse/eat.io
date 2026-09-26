@@ -14,8 +14,8 @@ const room = (over: Partial<RoomStateMessage> = {}): RoomStateMessage => ({
   roundIndex: 0,
   roundCount: 10,
   deadlineAt: 20000,
-  you: { seat: "a", name: "Riley", score: 0, submitted: false, table: [], hand: [] },
-  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, handCount: 5, table: [] },
+  you: { seat: "a", name: "Riley", score: 0, submitted: false, appearance: null, table: [], hand: [] },
+  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, appearance: null, handCount: 5, table: [] },
   ...over,
 });
 
@@ -42,7 +42,7 @@ test("screens are derived in priority order: result, then room, then queue", () 
 test("awaiting-you is explicit, never inferred from a round index", () => {
   expect(selectAwaitingYou(seated({ room: room() }))).toBe(true);
   const submitted = room({
-    you: { seat: "a", name: "Riley", score: 0, submitted: true, table: [], hand: [] },
+    you: { seat: "a", name: "Riley", score: 0, submitted: true, appearance: null, table: [], hand: [] },
   });
   expect(selectAwaitingYou(seated({ room: submitted }))).toBe(false);
   expect(selectAwaitingYou(seated({ room: room({ phase: "paused" }) }))).toBe(false);

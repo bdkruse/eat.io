@@ -31,7 +31,17 @@ const ACCESSORY_LABELS: Record<Accessory, string> = {
   beanie: "Beanie",
 };
 
-function SwatchRow({ label, colors, value, onPick }: { label: string; colors: readonly string[]; value: string; onPick: (color: string) => void }) {
+function SwatchRow<ColorValue extends string>({
+  label,
+  colors,
+  value,
+  onPick,
+}: {
+  label: string;
+  colors: readonly ColorValue[];
+  value: ColorValue;
+  onPick: (color: ColorValue) => void;
+}) {
   return (
     <div className="option-row">
       <span className="option-row__label">{label}</span>
