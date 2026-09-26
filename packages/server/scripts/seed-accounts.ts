@@ -88,7 +88,9 @@ function printOutcome(outcome: SeedOutcome): void {
   } else if (outcome.created) {
     console.log(`created ${outcome.username} (${outcome.role})`);
   } else {
-    console.log(`updated ${outcome.username} → ${outcome.role}`);
+    // Not created by this run: an account with this name already existed, and it may
+    // belong to someone other than the person the seed list means (final review, item 6).
+    console.log(`updated ${outcome.username} → ${outcome.role} (existing account — check it is really theirs)`);
   }
 }
 
