@@ -10,6 +10,9 @@ An npm-workspaces monorepo:
   its [README](./packages/server/README.md) and [PROTOCOL.md](./packages/server/PROTOCOL.md).
 - **`packages/client`** (`@eat.io/client`) — the React client that renders the game. See its
   [README](./packages/client/README.md).
+- **`packages/client-3d`** (`@eat.io/client-3d`): a three.js front end that plays the same
+  game in a 3D school cafeteria. It reuses the React client's state and connection code.
+  See its [README](./packages/client-3d/README.md).
 
 ```bash
 npm install
@@ -18,6 +21,7 @@ npm run typecheck   # strict tsc across all three packages
 
 npm start           # terminal 1 — the game server on :8000
 npm run dev:client  # terminal 2 — the client; open its URL in two windows to play
+npm run dev:3d      # or the 3D cafeteria client instead, on :5174
 ```
 
 With no browser handy, `node scripts/play-demo.mjs` runs two bots through a full game
