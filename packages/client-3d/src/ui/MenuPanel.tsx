@@ -27,6 +27,7 @@ export function MenuPanel({
     connectAndLogin,
     connectAndRegister,
     login,
+    register,
     joinQueue,
     createPrivate,
     joinPrivate,
@@ -151,22 +152,49 @@ export function MenuPanel({
         </div>
       )}
 
-      {isGuestAccount && activeTab === "login" && (
-        <AccountForm
-          mode="login"
-          disabled={busy}
-          submitLabel="Log in"
-          onSubmit={(username, password) => login(username, password)}
-        />
-      )}
-
-      {isGuestAccount && activeTab !== "login" && (
+      {isGuestAccount && activeTab === "guest" && (
         <p className="panel__note">
           Playing as a guest.{" "}
           <button className="link-button" onClick={() => pickTab("login")}>
             Log in
+          </button>{" "}
+          or{" "}
+          <button className="link-button" onClick={() => pickTab("register")}>
+            create an account
           </button>
+          .
         </p>
+      )}
+
+      {isGuestAccount && (activeTab === "login" || activeTab === "register") && (
+        <>
+          <div className="chips" role="tablist" aria-label="Log in or create an account">
+            <button
+              className={activeTab === "login" ? "chip chip--picked" : "chip"}
+              role="tab"
+              aria-selected={activeTab === "login"}
+              onClick={() => pickTab("login")}
+            >
+              Log in
+            </button>
+            <button
+              className={activeTab === "register" ? "chip chip--picked" : "chip"}
+              role="tab"
+              aria-selected={activeTab === "register"}
+              onClick={() => pickTab("register")}
+            >
+              Create account
+            </button>
+          </div>
+          <AccountForm
+            mode={activeTab}
+            disabled={busy}
+            submitLabel={activeTab === "login" ? "Log in" : "Create account"}
+            onSubmit={(username, password) =>
+              activeTab === "login" ? login(username, password) : register(username, password)
+            }
+          />
+        </>
       )}
 
       <button className="button button--ghost" onClick={() => setCustomizing(true)}>

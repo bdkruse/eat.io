@@ -108,6 +108,10 @@
 .field__input--quiet { font-size: 13px; padding: 8px 12px; color: var(--ink-2); }
 
 .account-form__rules { color: var(--ink-2); font-size: 12px; line-height: 1.5; margin: 4px 0 14px; }
+/* The submit button is nested inside .account-form, so it never matches
+   `.panel--menu > .button--primary` — give it the same bottom margin by hand, so it does
+   not sit flush against whatever menu action follows it. */
+.account-form .button--primary { margin-bottom: 12px; }
 .link-button {
   background: none; border: none; padding: 0; margin: 0; font: inherit;
   color: var(--you); font-weight: 700; cursor: pointer; text-decoration: underline;
