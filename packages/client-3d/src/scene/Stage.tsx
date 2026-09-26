@@ -5,6 +5,7 @@ import { selectAwaitingYou, selectBoardFrozen, selectScreen } from "@eat.io/clie
 import { useLocalState } from "../state/LocalState.js";
 import { Cafeteria } from "./cafeteria/Cafeteria.js";
 import { CameraRig } from "./CameraRig.js";
+import { DETAIL_BUDGETS } from "./detail.js";
 import { selectShot } from "./cameraShots.js";
 import { GameTable } from "./game/GameTable.js";
 import { Lighting } from "./Lighting.js";
@@ -32,19 +33,20 @@ export function Stage() {
   const frozen = selectBoardFrozen(state);
   const awaitingYou = selectAwaitingYou(state);
   const inGame = screen === "game" || screen === "gameOver";
+  const budget = DETAIL_BUDGETS[local.detail];
 
   return (
     <div className={frozen && inGame ? "stage stage--frozen" : "stage"}>
       <Canvas
-        shadows="percentage"
-        dpr={[1, 2]}
+        shadows={budget.shadows ? "percentage" : false}
+        dpr={[1, budget.maxPixelRatio]}
         camera={{ fov: 50, near: 0.1, far: 80 }}
         gl={{ antialias: true, powerPreference: "high-performance" }}
       >
         <color attach="background" args={["#e9e4d6"]} />
         <fog attach="fog" args={["#ece6d6", 22, 48]} />
-        <Lighting />
-        <Cafeteria />
+        <Lighting shadows={budget.shadows} />
+        <Cafeteria budget={budget} />
         <GameTable
           room={inGame ? state.room : null}
           result={state.result}

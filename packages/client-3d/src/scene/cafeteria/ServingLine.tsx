@@ -5,6 +5,7 @@ import { SphereGeometry, type Group } from "three";
 import { randomAppearance, type Appearance } from "../../appearance/appearance.js";
 import { Kid } from "../characters/Kid.js";
 import { sharedGeometry, toon, unlit } from "../materials.js";
+import { keepsKid, type DetailBudget } from "../detail.js";
 import { ROOM, SERVING_LINE } from "./layout.js";
 import { signTexture } from "./textures.js";
 
@@ -34,7 +35,7 @@ const staffLook = (seed: number): Appearance => ({
 });
 
 /** The steam-table counter, the staff behind it, and the kids waiting in line. */
-export function ServingLine() {
+export function ServingLine({ budget }: { budget: DetailBudget }) {
   const length = SERVING_LINE.toX - SERVING_LINE.fromX;
   const centerX = (SERVING_LINE.toX + SERVING_LINE.fromX) / 2;
   const menuBoard = signTexture("menu", {
@@ -115,7 +116,7 @@ export function ServingLine() {
                   scale={[1.2, 0.7, 1]}
                 />
               ))}
-              <Steam seed={index} />
+              {budget.steam && <Steam seed={index} />}
             </group>
           );
         })}
@@ -126,7 +127,7 @@ export function ServingLine() {
         <Kid key={x} appearance={staffLook(40 + index)} pose="stand" animation="serve" phase={index * 0.43} position={[x, 0, SERVING_LINE.staffZ]} rotation={0} scale={1.28} apron blobShadow />
       ))}
 
-      <LineOfKids />
+      <LineOfKids keepEvery={budget.lineKeepEvery} />
     </group>
   );
 }
@@ -158,7 +159,7 @@ function Steam({ seed }: { seed: number }) {
 }
 
 /** Kids waiting their turn, shuffling forward and chatting with the one behind. */
-function LineOfKids() {
+function LineOfKids({ keepEvery }: { keepEvery: number }) {
   const spots = [-8.4, -7.5, -6.5, -5.6, -4.6, -3.7, -2.6, -1.8];
   const shufflers = useRef<(Group | null)[]>([]);
   useFrame(({ clock }) => {
@@ -171,7 +172,8 @@ function LineOfKids() {
   });
   return (
     <group>
-      {spots.map((x, index) => (
+      {spots.map((x, index) =>
+        !keepsKid(index, keepEvery) ? null : (
         <group key={x} ref={(node) => void (shufflers.current[index] = node)} position={[x, 0, SERVING_LINE.lineZ]}>
           <Kid
             appearance={randomAppearance(200 + index)}
@@ -184,7 +186,8 @@ function LineOfKids() {
             blobShadow
           />
         </group>
-      ))}
+        ),
+      )}
     </group>
   );
 }

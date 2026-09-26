@@ -5,6 +5,7 @@ import { randomAppearance, type Appearance } from "../../appearance/appearance.j
 import { createRandom } from "../../lib/seededRandom.js";
 import { Kid } from "../characters/Kid.js";
 import type { Animation } from "../characters/poses.js";
+import type { DetailBudget } from "../detail.js";
 import { WALK_LOOPS } from "./layout.js";
 
 interface Walker {
@@ -21,6 +22,8 @@ interface Walker {
   phase: number;
   /** Sideways offset from the aisle's center line so pairs do not overlap. */
   lane: number;
+  /** Position within its loop's group; low detail keeps only the first few. */
+  indexOnLoop: number;
 }
 
 function loopLength(loop: readonly (readonly [number, number])[]): number {
@@ -50,7 +53,7 @@ function pointOnLoop(loop: readonly (readonly [number, number])[], distance: num
 
 const WALKERS_PER_LOOP = 3;
 
-export function Crowd() {
+export function Crowd({ budget }: { budget: DetailBudget }) {
   const walkers = useMemo<Walker[]>(() => {
     const random = createRandom(77);
     return WALK_LOOPS.flatMap((loop, loopIndex) =>
@@ -68,6 +71,7 @@ export function Crowd() {
           carrying,
           phase: random.next(),
           lane: index % 2 === 1 ? -0.35 : 0.35,
+          indexOnLoop: index,
         };
       }),
     );
@@ -75,9 +79,9 @@ export function Crowd() {
 
   return (
     <group>
-      {walkers.map((walker, index) => (
-        <WalkingKid key={index} walker={walker} />
-      ))}
+      {walkers.map((walker, index) =>
+        walker.indexOnLoop < budget.walkersPerLoop ? <WalkingKid key={index} walker={walker} /> : null,
+      )}
     </group>
   );
 }

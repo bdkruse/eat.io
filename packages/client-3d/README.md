@@ -70,6 +70,23 @@ src/
 Click a card, then click trays on your side of the table. Keys `1` to `5` pick a card,
 `Enter` ends the turn, and `Esc` clears the pick.
 
+## Detail levels
+
+The High / Low switch in the top corner changes how much of the room is drawn. It works on
+every screen, including mid-game, and it resets when you reload.
+
+| | High | Low |
+|---|---|---|
+| Shadows | On | Off |
+| Pixel density | Up to 2x | 1x |
+| Seated kids | All | Every other one |
+| Kids in the lunch line | All | Every other one |
+| Walking kids | 3 per aisle loop | 1 per aisle loop |
+| Steam over the food | On | Off |
+
+Low detail draws a fixed subset of the same kids, so switching never reshuffles the room.
+The game table is identical in both modes. The budgets are data in `src/scene/detail.ts`.
+
 ## Customization
 
 Skin tone, hair style, hair color, shirt, pants, and one extra (glasses, cap, headband, or
@@ -80,7 +97,7 @@ Your opponent's kid is generated from their name, so the same name always looks 
 
 - The production bundle is about 1.7 MB (450 KB gzipped), mostly three.js. Vite warns
   about the chunk size.
-- About 85 animated kids are in the room. A slow machine can drop frames in the menu shot.
+- About 85 animated kids are in the room at high detail. On a slow machine, use Low.
 - The kids have no collision. Walkers follow fixed aisles, so they do not cross tables,
   but two walkers can pass through each other.
 - No sound.

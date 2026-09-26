@@ -6,7 +6,7 @@ import { ROOM } from "./cafeteria/layout.js";
  * Daylight from the windows on the right wall plus a warm fill from the ceiling. One
  * shadow-casting light, its shadow camera sized to the room so the shadows stay crisp.
  */
-export function Lighting() {
+export function Lighting({ shadows }: { shadows: boolean }) {
   const sun = useRef<DirectionalLight>(null);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function Lighting() {
         position={[ROOM.maxX + 6, 14, 4]}
         intensity={2.1}
         color="#fff3dd"
-        castShadow
+        castShadow={shadows}
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.03}

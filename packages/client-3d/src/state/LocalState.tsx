@@ -9,6 +9,7 @@ import {
   type Selection,
 } from "@eat.io/client/state/selection.js";
 import { DEFAULT_APPEARANCE, type Appearance } from "../appearance/appearance.js";
+import type { DetailLevel } from "../scene/detail.js";
 
 /**
  * State that belongs to this browser tab only and never reaches the server: how your kid
@@ -20,6 +21,9 @@ export interface LocalStateApi {
   setAppearance: (next: Appearance) => void;
   customizing: boolean;
   setCustomizing: (open: boolean) => void;
+  /** How much of the room to draw; low trades crowd and shadows for frame rate. */
+  detail: DetailLevel;
+  setDetail: (next: DetailLevel) => void;
   selection: Selection;
   /** How many trays the chosen card takes; 0 with no card chosen. */
   targetCount: number;
@@ -36,6 +40,7 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const { state, submitTurn, noteLocalRejection } = useGame();
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [customizing, setCustomizing] = useState(false);
+  const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
 
   const roundIndex = state.room?.roundIndex ?? null;
@@ -75,6 +80,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       setAppearance,
       customizing,
       setCustomizing,
+      detail,
+      setDetail,
       selection,
       targetCount,
       ready,
@@ -83,7 +90,7 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       clearSelection: () => setSelection(emptySelection),
       endTurn,
     }),
-    [appearance, customizing, selection, targetCount, ready, chooseCard, clickTray, endTurn],
+    [appearance, customizing, detail, selection, targetCount, ready, chooseCard, clickTray, endTurn],
   );
 
   return <LocalStateContext.Provider value={api}>{children}</LocalStateContext.Provider>;

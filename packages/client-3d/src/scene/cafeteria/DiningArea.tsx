@@ -5,6 +5,7 @@ import { createRandom } from "../../lib/seededRandom.js";
 import { Kid } from "../characters/Kid.js";
 import type { Animation } from "../characters/poses.js";
 import { sharedGeometry, toon } from "../materials.js";
+import { keepsKid, type DetailBudget } from "../detail.js";
 import { DINING_TABLE, DINING_TABLES } from "./layout.js";
 import { LunchTable } from "./LunchTable.js";
 
@@ -64,8 +65,10 @@ function seatKids(tableIndex: number): SeatedKid[] {
   return kids;
 }
 
-export function DiningArea() {
-  const tables = useMemo(() => DINING_TABLES.map((_, index) => seatKids(index)), []);
+export function DiningArea({ budget }: { budget: DetailBudget }) {
+  // Generated once at full size, then thinned, so low detail shows a subset of the same kids.
+  const allTables = useMemo(() => DINING_TABLES.map((_, index) => seatKids(index)), []);
+  const tables = allTables.map((kids) => kids.filter((_, index) => keepsKid(index, budget.seatedKeepEvery)));
   return (
     <group>
       {DINING_TABLES.map(([x, z], index) => (
