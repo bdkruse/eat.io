@@ -18,7 +18,7 @@ export const CARD_CATALOG: readonly CardDefinition[] = [
 export const TUNING = {
   tableLength: 5,
   handSize: 5,
-  roundCount: 10,
+  roundCount: 20,
   trayMin: 1,
   trayMax: 4,
   deckSize: 40,

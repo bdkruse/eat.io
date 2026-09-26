@@ -30,7 +30,7 @@ Configuration is environment-driven (all optional; defaults shown):
 | Env | Default | Meaning |
 |---|---|---|
 | `PORT` | `8000` | WebSocket port |
-| `ROUND_COUNT` | `10` | Rounds before the game ends |
+| `ROUND_COUNT` | `20` | Rounds before the game ends |
 | `MOVE_DEADLINE_MS` | `20000` | Per-player turn clock; idle players auto-discard |
 | `RECONNECT_GRACE_MS` | `30000` | Grace window to reconnect after a drop |
 | `HEARTBEAT_INTERVAL_MS` | `15000` | Ping cadence |

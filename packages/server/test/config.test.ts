@@ -4,7 +4,7 @@ import { loadConfig } from "../src/config.js";
 test("defaults match the spec", () => {
   const c = loadConfig({});
   expect(c.port).toBe(8000);
-  expect(c.roundCount).toBe(10);
+  expect(c.roundCount).toBe(20);
   expect(c.moveDeadlineMs).toBe(20000);
   expect(c.reconnectGraceMs).toBe(30000);
   expect(c.seed).toBeNull();
