@@ -9,6 +9,7 @@ export type Action =
   | { kind: "localRejection"; message: string }
   | { kind: "playAgain" }
   | { kind: "backToMenu" }
+  | { kind: "backToConnectedMenu" }
   | { kind: "dismissRejection" }
   | { kind: "dismissAccountError" }
   | { kind: "accountAttemptStarted" };
@@ -43,7 +44,11 @@ export function gameReducer(state: AppState, action: Action): AppState {
     case "playAgain":
       return { ...state, room: null, ...CLEARED_FOR_NEW_ROOM };
     case "backToMenu":
-      return { ...initialAppState, connection: state.connection, name: state.name };
+      return backToPreConnectMenu(state);
+    case "backToConnectedMenu":
+      // A logged-in player leaves the finished game but keeps the connection, the
+      // session, and the account — only the room and its leftovers go (final review, item 2).
+      return { ...state, room: null, ...CLEARED_FOR_NEW_ROOM };
     case "dismissRejection":
       return { ...state, rejection: null };
     case "dismissAccountError":
@@ -55,6 +60,15 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return never;
     }
   }
+}
+
+/**
+ * The menu as it looks before connecting — the three tabs — keeping only what the player
+ * typed into the name field. The connection itself is reset by the disconnect that goes
+ * with this.
+ */
+function backToPreConnectMenu(state: AppState): AppState {
+  return { ...initialAppState, connection: state.connection, name: state.name };
 }
 
 /**
@@ -135,7 +149,10 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       return { ...state, account: msg.profile, accountError: null, accountPending: false };
 
     case "accountLoggedOut":
-      return { ...state, account: null, accountPending: false };
+      // Requested or an expired resume, the player goes back to the usual pre-connect menu
+      // rather than staying on as a nameless connected guest (final review, item 3). The
+      // provider disconnects alongside this.
+      return backToPreConnectMenu(state);
 
     case "accountError":
       return {

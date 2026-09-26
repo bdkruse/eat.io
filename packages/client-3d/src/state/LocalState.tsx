@@ -97,8 +97,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   // separate messages, so there is a real gap where identity is set but account is still
   // null even for a login or a token resume — shouldShareGuestLook accounts for that gap
   // via accountPending (fix round 1). It fires again once that gap closes without an
-  // account: a failed login, an expired resume, or a logout while connected all leave a
-  // guest whose look has never been shared (or needs re-sharing).
+  // account: a failed login leaves a guest whose look has never been shared. (A logout or
+  // an expired resume disconnects instead, so neither leaves a connected guest behind.)
   const shouldShareNow = shouldShareGuestLook({
     identitySet: state.identity !== null,
     account: state.account,
@@ -117,9 +117,14 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
 
   // Logging in replaces the local look with the account's saved one. A brand-new account
   // has none yet, so it is seeded with whatever look was already in use instead (§11).
+  // Logging out closes the profile panel: it has nothing left to show, and while open it
+  // would hide the pre-connect menu the logout returns to (final review, item 3).
   const previousAccountRef = useRef<AppState["account"]>(null);
   useEffect(() => {
     const previousAccount = previousAccountRef.current;
+    if (previousAccount !== null && state.account === null) {
+      setProfileOpenState(false);
+    }
     if (previousAccount === null && state.account !== null) {
       if (state.account.appearance) {
         setAppearance(state.account.appearance);

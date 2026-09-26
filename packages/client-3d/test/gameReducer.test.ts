@@ -1,6 +1,11 @@
 import { expect, test } from "vitest";
 import type { Profile, RoomStateMessage, ServerMessage } from "@eat.io/protocol";
-import { initialAppState, type AppState } from "../src/state/gameState.js";
+import {
+  initialAppState,
+  selectBackToMenuStaysConnected,
+  selectScreen,
+  type AppState,
+} from "../src/state/gameState.js";
 import { gameReducer } from "../src/state/gameReducer.js";
 
 const server = (state: AppState, msg: ServerMessage) => gameReducer(state, { kind: "server", msg });
@@ -294,4 +299,60 @@ test("backToMenu clears a pending account attempt", () => {
   let state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
   state = gameReducer(state, { kind: "backToMenu" });
   expect(state.accountPending).toBe(false);
+});
+
+test("backToConnectedMenu keeps a logged-in player's session and account", () => {
+  let state = gameReducer(welcomed(), { kind: "nameChanged", name: "Riley" });
+  state = play(
+    state,
+    { type: "accountLoggedIn", profile: profile() },
+    room({ roundIndex: 10 }),
+    { type: "opponentDisconnected", graceEndsAt: 30000 },
+    { type: "actionRejected", code: "BAD_TARGET", message: "no" },
+    { type: "gameOver", result: { kind: "win", scores: { a: 20, b: 3 } } },
+  );
+  state = gameReducer(state, { kind: "connection", state: { phase: "connected", error: null, attempt: 0 } });
+  state = gameReducer(state, { kind: "backToConnectedMenu" });
+  expect(state.room).toBeNull();
+  expect(state.result).toBeNull();
+  expect(state.queued).toBe(false);
+  expect(state.privateCode).toBeNull();
+  expect(state.rejection).toBeNull();
+  expect(state.opponentDropped).toBeNull();
+  expect(state.identity).toEqual({ playerId: "p1", sessionToken: "tok" });
+  expect(state.account).toEqual(profile());
+  expect(state.connection.phase).toBe("connected");
+  expect(state.name).toBe("Riley");
+  expect(selectScreen(state)).toBe("connect");
+});
+
+test("Back to menu stays connected only for a logged-in player", () => {
+  const guestState = play(welcomed(), room());
+  const loggedInState = play(welcomed(), { type: "accountLoggedIn", profile: profile() }, room());
+  expect(selectBackToMenuStaysConnected(guestState)).toBe(false);
+  expect(selectBackToMenuStaysConnected(loggedInState)).toBe(true);
+});
+
+test("a requested logout returns to the pre-connect menu, keeping the typed name", () => {
+  let state = gameReducer(welcomed(), { kind: "nameChanged", name: "Riley" });
+  state = play(state, { type: "accountLoggedIn", profile: profile() }, { type: "passwordChanged" });
+  state = server(state, { type: "accountLoggedOut", reason: "requested" });
+  expect(state.identity).toBeNull();
+  expect(state.account).toBeNull();
+  expect(state.accountNotice).toBeNull();
+  expect(state.name).toBe("Riley");
+  expect(selectScreen(state)).toBe("connect");
+});
+
+test("an expired resume returns to the pre-connect menu with no name invented for the player", () => {
+  let state = gameReducer(initialAppState, { kind: "accountAttemptStarted" });
+  state = play(
+    state,
+    { type: "welcome", playerId: "p1", sessionToken: "tok" },
+    { type: "accountLoggedOut", reason: "expired" },
+  );
+  expect(state.identity).toBeNull();
+  expect(state.accountPending).toBe(false);
+  expect(state.name).toBe("");
+  expect(selectScreen(state)).toBe("connect");
 });

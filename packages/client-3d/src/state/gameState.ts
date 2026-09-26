@@ -84,6 +84,15 @@ export function selectScreen(state: AppState): Screen {
   return "connect";
 }
 
+/**
+ * "Back to menu" after a game keeps a logged-in player connected (their identity is the
+ * account, and it must not look logged out). A guest disconnects and starts over at the
+ * pre-connect menu, as before (final review, item 2).
+ */
+export function selectBackToMenuStaysConnected(state: AppState): boolean {
+  return state.account !== null;
+}
+
 /** Explicit from the server's submitted flags — never inferred from a turn index (§2.8.10). */
 export function selectAwaitingYou(state: AppState): boolean {
   const room = state.room;

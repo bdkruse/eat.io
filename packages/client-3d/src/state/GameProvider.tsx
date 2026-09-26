@@ -14,7 +14,7 @@ import { resumeServerUrl } from "../config.js";
 import type { ConnectionState } from "../connection/connectionState.js";
 import { useConnection } from "../connection/useConnection.js";
 import { gameReducer } from "./gameReducer.js";
-import { initialAppState, type AppState } from "./gameState.js";
+import { initialAppState, selectBackToMenuStaysConnected, type AppState } from "./gameState.js";
 import { clearLoginToken, loadLoginToken, loadServerUrl, saveLoginToken, saveServerUrl } from "./loginStorage.js";
 import { createPendingAccountMessageHolder } from "./pendingAccountMessage.js";
 
@@ -59,6 +59,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // must drop anything left waiting here, so it can never leak into a later, unrelated
   // connection (fix round 1).
   const pendingAccountMessageHolderRef = useRef(createPendingAccountMessageHolder());
+  // Same reason as sendRef: the disconnect below is defined after handleMessage needs it.
+  const disconnectRef = useRef<() => void>(() => {});
 
   const handleMessage = useCallback((msg: ServerMessage) => {
     if (msg.type === "welcome") {
@@ -72,6 +74,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       clearLoginToken();
     }
     dispatch({ kind: "server", msg });
+    // A logout (requested, or an expired resume) ends the connection too: the reducer has
+    // just put the pre-connect menu back, and a connected guest with no name must not be
+    // left behind (final review, item 3).
+    if (msg.type === "accountLoggedOut") disconnectRef.current();
   }, []);
 
   const handleConnectionChange = useCallback((next: ConnectionState) => {
@@ -111,6 +117,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
     rawDisconnect();
   }, [rawDisconnect]);
 
+  useEffect(() => {
+    disconnectRef.current = disconnect;
+  }, [disconnect]);
+
   // A stored login token means a returning player — resume the connection before they
   // touch anything, and fall back to the menu as usual if that fails (§11). Marked as a
   // pending account attempt so the guest-look effect does not fire mid-resume and
@@ -139,6 +149,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         connectKeepingPending(url, username);
       },
       leaveToMenu: () => {
+        // A logged-in player stays connected and returns to the connected menu; a guest
+        // disconnects and starts over at the pre-connect menu (final review, item 2).
+        if (selectBackToMenuStaysConnected(state)) {
+          dispatch({ kind: "backToConnectedMenu" });
+          return;
+        }
         disconnect();
         dispatch({ kind: "backToMenu" });
       },
