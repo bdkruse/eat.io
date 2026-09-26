@@ -43,7 +43,14 @@ test("a full game terminates after roundCount rounds with valid state throughout
   }
   const ranked = rankResult(g);
   expect(ranked.winner === null || ranked.winner === "a" || ranked.winner === "b").toBe(true);
-  expect(() => parseServerMessage(viewFor(g, "p1", null))).not.toThrow();
+  // The room adds each player's appearance; the engine's view is everything else.
+  const view = viewFor(g, "p1", null);
+  const roomState = {
+    ...view,
+    you: { ...view.you, appearance: null },
+    opponent: { ...view.opponent, appearance: null },
+  };
+  expect(() => parseServerMessage(roomState)).not.toThrow();
 });
 
 test("same seed produces identical final scores (reproducible)", () => {

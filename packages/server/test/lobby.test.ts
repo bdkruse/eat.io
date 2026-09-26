@@ -13,6 +13,8 @@ import { manualTime } from "../src/lobby/timers.js";
 import { Matchmaker } from "../src/lobby/matchmaking.js";
 import { RoomRegistry } from "../src/lobby/registry.js";
 import { Lobby, type Connection } from "../src/lobby/lobby.js";
+import { openAccountsDatabase } from "../src/accounts/database.js";
+import { AccountStore } from "../src/accounts/accountStore.js";
 
 function makeLobby() {
   const time = manualTime();
@@ -27,6 +29,7 @@ function makeLobby() {
     logger: createLogger("error"),
     genId: () => `player-${++idSeq}`,
     genToken: () => `tok-${++tokSeq}`,
+    accounts: new AccountStore(openAccountsDatabase(":memory:"), time.clock),
   });
   return { lobby, time };
 }

@@ -1,12 +1,13 @@
 import { expect, test, vi } from "vitest";
 import type { ServerMessage } from "@eat.io/protocol";
 import { Session } from "../src/session/session.js";
+import { manualTime } from "../src/lobby/timers.js";
 
 const pong: ServerMessage = { type: "pong" };
 
 test("send delivers while connected and no-ops while detached", () => {
   const sink = vi.fn();
-  const s = new Session({ id: "p1", name: "Riley", token: "tok", send: sink });
+  const s = new Session({ id: "p1", name: "Riley", token: "tok", send: sink, clock: manualTime().clock });
   s.send(pong);
   s.detach();
   s.send(pong);
@@ -17,7 +18,7 @@ test("send delivers while connected and no-ops while detached", () => {
 test("attach swaps the socket and marks connected again", () => {
   const first = vi.fn();
   const second = vi.fn();
-  const s = new Session({ id: "p1", name: "Riley", token: "tok", send: first });
+  const s = new Session({ id: "p1", name: "Riley", token: "tok", send: first, clock: manualTime().clock });
   s.detach();
   s.attach(second);
   s.send(pong);

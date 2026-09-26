@@ -15,11 +15,12 @@ function harness() {
     moveDeadlineMs: 20000, reconnectGraceMs: 30000,
     clock: time.clock, timers: time.timers,
     send: (id, msg) => sent[id]!.push(msg),
+    onResult: () => {},
     onFinished: (id) => finished.push(id),
     logger: createLogger("error"), seed: 5,
   });
-  room.addPlayer("p1", "Riley");
-  room.addPlayer("p2", "Sam");
+  room.addPlayer("p1", "Riley", null);
+  room.addPlayer("p2", "Sam", null);
   const last = (id: PlayerId, type: string) => {
     const ms = sent[id]!.filter((m) => m.type === type);
     return ms[ms.length - 1];

@@ -32,7 +32,7 @@ function client(port: number, name: string) {
 }
 
 test("two clients matchmake and play a full game to gameOver", async () => {
-  transport = await createServer(loadConfig({ PORT: "0", RNG_SEED: "5", ROUND_COUNT: "10" }));
+  transport = await createServer(loadConfig({ PORT: "0", RNG_SEED: "5", ROUND_COUNT: "10", DATABASE_PATH: ":memory:" }));
   const a = client(transport.port, "Riley");
   const b = client(transport.port, "Sam");
   await Promise.all([a.open, b.open]);

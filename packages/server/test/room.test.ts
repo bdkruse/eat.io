@@ -20,12 +20,13 @@ function harness() {
     clock: time.clock,
     timers: time.timers,
     send: (id, msg) => sent[id]!.push(msg),
+    onResult: () => {},
     onFinished: (id) => finished.push(id),
     logger: createLogger("error"),
     seed: 5,
   });
-  room.addPlayer("p1", "Riley");
-  room.addPlayer("p2", "Sam");
+  room.addPlayer("p1", "Riley", null);
+  room.addPlayer("p2", "Sam", null);
   const lastState = (id: PlayerId): RoomStateMessage => {
     const states = sent[id]!.filter((m): m is RoomStateMessage => m.type === "roomState");
     return states[states.length - 1]!;

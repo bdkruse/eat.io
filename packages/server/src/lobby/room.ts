@@ -2,7 +2,7 @@ import type { PlayerId, GameState, Submission } from "../engine/state.js";
 import type { Rules } from "../engine/rules/index.js";
 import type { Cancel, Clock, Timers } from "./timers.js";
 import type { Logger } from "../logger.js";
-import type { RoomPhase, Seat, ServerMessage } from "@eat.io/protocol";
+import type { Appearance, ResultKind, RoomPhase, RoomStateMessage, Seat, ServerMessage } from "@eat.io/protocol";
 import { createGame } from "../engine/deal.js";
 import {
   applyAction,
@@ -17,6 +17,12 @@ import {
   viewFor,
 } from "../engine/engine.js";
 
+export interface SeatResult {
+  playerId: PlayerId;
+  score: number;
+  kind: ResultKind;
+}
+
 export interface RoomDeps {
   roomId: string;
   rules: Rules;
@@ -26,6 +32,8 @@ export interface RoomDeps {
   clock: Clock;
   timers: Timers;
   send: (playerId: PlayerId, msg: ServerMessage) => void;
+  /** Called once when the game ends with a result, before `onFinished`. Never for an abandoned room. */
+  onResult: (results: SeatResult[]) => void;
   onFinished: (roomId: string) => void;
   logger: Logger;
   seed: number | null;
@@ -35,6 +43,7 @@ interface SeatRef {
   id: PlayerId;
   seat: Seat;
   name: string;
+  appearance: Appearance | null;
 }
 
 const SEATS: readonly Seat[] = ["a", "b"];
@@ -64,9 +73,9 @@ export class Room {
     return this.seats.some((s) => s.id === id);
   }
 
-  addPlayer(playerId: PlayerId, name: string): void {
+  addPlayer(playerId: PlayerId, name: string, appearance: Appearance | null): void {
     if (this.isFull() || this.hasPlayer(playerId)) return;
-    this.seats.push({ id: playerId, seat: SEATS[this.seats.length]!, name });
+    this.seats.push({ id: playerId, seat: SEATS[this.seats.length]!, name, appearance });
     if (this.isFull()) this.start();
   }
 
@@ -86,7 +95,7 @@ export class Room {
   protected start(): void {
     this.state = createGame({
       roomId: this.id,
-      seats: this.seats,
+      seats: this.seats.map(({ id, seat, name }) => ({ id, seat, name })),
       rules: this.deps.rules,
       roundCount: this.deps.roundCount,
       seed: this.deps.seed ?? Math.floor(Math.random() * 0x7fffffff),
@@ -135,8 +144,18 @@ export class Room {
   protected broadcast(): void {
     if (!this.state) return;
     for (const s of this.seats) {
-      this.deps.send(s.id, viewFor(this.state, s.id, this.deadlineAt));
+      this.deps.send(s.id, this.viewForSeat(this.state, s, this.deadlineAt));
     }
+  }
+
+  /** The engine's view for one seat, with both players' appearance added from the seats. */
+  private viewForSeat(state: GameState, seatRef: SeatRef, deadlineAt: number | null): RoomStateMessage {
+    const gameView = viewFor(state, seatRef.id, deadlineAt);
+    return {
+      ...gameView,
+      you: { ...gameView.you, appearance: seatRef.appearance },
+      opponent: { ...gameView.opponent, appearance: this.opponentOf(seatRef.id)?.appearance ?? null },
+    };
   }
 
   protected finish(): void {
@@ -144,10 +163,14 @@ export class Room {
     this.clearDeadline();
     this.state = { ...this.state, phase: "finished" };
     const ranked = rankResult(this.state);
+    const results: SeatResult[] = [];
     for (const s of this.seats) {
-      this.deps.send(s.id, viewFor(this.state, s.id, null));
-      this.deps.send(s.id, { type: "gameOver", result: resultFor(ranked, s.seat) });
+      const result = resultFor(ranked, s.seat);
+      this.deps.send(s.id, this.viewForSeat(this.state, s, null));
+      this.deps.send(s.id, { type: "gameOver", result });
+      results.push({ playerId: s.id, score: ranked.scores[s.seat], kind: result.kind });
     }
+    this.deps.onResult(results);
     this.deps.onFinished(this.id);
     this.deps.logger.info("room finished", { roomId: this.id });
   }
@@ -235,7 +258,7 @@ export class Room {
     this.state = { ...this.state, phase: "abandoned" };
     for (const s of this.seats) {
       const p = this.state.players[s.id];
-      if (p?.connected) this.deps.send(s.id, viewFor(this.state, s.id, null));
+      if (p?.connected) this.deps.send(s.id, this.viewForSeat(this.state, s, null));
     }
     this.deps.onFinished(this.id);
     this.deps.logger.info("room abandoned", { roomId: this.id });

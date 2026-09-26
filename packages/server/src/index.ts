@@ -10,6 +10,8 @@ import { Matchmaker } from "./lobby/matchmaking.js";
 import { RoomRegistry } from "./lobby/registry.js";
 import { Lobby } from "./lobby/lobby.js";
 import { startTransport, type Transport } from "./transport/server.js";
+import { openAccountsDatabase } from "./accounts/database.js";
+import { AccountStore } from "./accounts/accountStore.js";
 
 /** A four-digit room code — easy to read aloud and type. Collisions are retried by the
  *  matchmaker, and 10,000 codes is ample for the concurrent rooms this process holds. */
@@ -17,8 +19,12 @@ function randomCode(): string {
   return String(Math.floor(Math.random() * 10000)).padStart(4, "0");
 }
 
-export function createServer(config: Config = loadConfig()): Promise<Transport> {
+export async function createServer(config: Config = loadConfig()): Promise<Transport> {
   const logger = createLogger(config.logLevel, { app: "eatio" });
+  const database = openAccountsDatabase(config.databasePath);
+  const accounts = new AccountStore(database, systemClock);
+  const sweptTokenCount = accounts.sweepExpiredTokens();
+  if (sweptTokenCount > 0) logger.info("expired login tokens swept", { count: sweptTokenCount });
   const lobby = new Lobby({
     config,
     rules: makeRules({ tableLength: config.tableLength, handSize: config.handSize }),
@@ -29,8 +35,19 @@ export function createServer(config: Config = loadConfig()): Promise<Transport> 
     logger,
     genId: () => randomUUID(),
     genToken: () => randomUUID(),
+    accounts,
   });
-  return startTransport({ lobby, config, logger });
+  const transport = await startTransport({ lobby, config, logger });
+  return {
+    port: transport.port,
+    close: async () => {
+      try {
+        await transport.close();
+      } finally {
+        database.close();
+      }
+    },
+  };
 }
 
 // Run when executed directly — `tsx packages/server/src/index.ts` in development, or

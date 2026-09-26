@@ -20,7 +20,7 @@ function client(port: number) {
 }
 
 test("shutdown notifies live rooms before the sockets are torn down", async () => {
-  transport = await createServer(loadConfig({ PORT: "0", RNG_SEED: "5" }));
+  transport = await createServer(loadConfig({ PORT: "0", RNG_SEED: "5", DATABASE_PATH: ":memory:" }));
   const a = client(transport.port);
   const b = client(transport.port);
   await Promise.all([a.open, b.open]);

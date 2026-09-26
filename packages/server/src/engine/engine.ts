@@ -1,4 +1,4 @@
-import type { RejectionCode, Result, RoomStateMessage, Seat } from "@eat.io/protocol";
+import type { OpponentView, RejectionCode, Result, RoomStateMessage, Seat, YouView } from "@eat.io/protocol";
 import type { GameState, PlayerId, Submission } from "./state.js";
 import { pick } from "../util/rng.js";
 import type { Rng } from "../util/rng.js";
@@ -181,7 +181,14 @@ export function resultFor(ranked: RankedResult, seat: Seat): Result {
   return { kind, scores: ranked.scores };
 }
 
-export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number | null): RoomStateMessage {
+/** The room state as the engine sees it: everything but each player's appearance,
+ *  which the room adds from its seats. */
+export type GameView = Omit<RoomStateMessage, "you" | "opponent"> & {
+  you: Omit<YouView, "appearance">;
+  opponent: Omit<OpponentView, "appearance">;
+};
+
+export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number | null): GameView {
   const you = state.players[playerId];
   if (!you) throw new Error(`viewFor: unknown player ${playerId}`);
   const opponent = Object.values(state.players).find((p) => p.id !== playerId);

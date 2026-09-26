@@ -27,5 +27,12 @@ test("view shows your hand but never the opponent's cards or any deck", () => {
 });
 
 test("the projection validates against the protocol schema", () => {
-  expect(() => parseServerMessage(viewFor(game(), "p1", null))).not.toThrow();
+  // The room adds each player's appearance; the engine's view is everything else.
+  const view = viewFor(game(), "p1", null);
+  const roomState = {
+    ...view,
+    you: { ...view.you, appearance: null },
+    opponent: { ...view.opponent, appearance: null },
+  };
+  expect(() => parseServerMessage(roomState)).not.toThrow();
 });

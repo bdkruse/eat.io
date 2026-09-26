@@ -47,11 +47,12 @@ function harness(rules: Rules) {
       if (sendThrows) throw new Error("send exploded");
       sent[id]!.push(msg);
     },
+    onResult: () => {},
     onFinished: () => {},
     logger, seed: 5,
   });
-  room.addPlayer("p1", "Riley");
-  room.addPlayer("p2", "Sam");
+  room.addPlayer("p1", "Riley", null);
+  room.addPlayer("p2", "Sam", null);
   return { room, time, errors, sent, breakSend: () => { sendThrows = true; } };
 }
 
