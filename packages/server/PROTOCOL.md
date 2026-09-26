@@ -1,6 +1,6 @@
 # eat.io WebSocket Protocol
 
-**Protocol version: 2.** This document is the complete contract between the eat.io
+**Protocol version: 3.** This document is the complete contract between the eat.io
 server and any client. The zod schemas in `@eat.io/protocol` are the source of truth; this
 prose describes them. If they disagree, the schemas win — but they should not.
 
@@ -39,7 +39,7 @@ Nothing is silently absorbed.
 
 | `type` | Fields | Sent when |
 |---|---|---|
-| `hello` | `protocolVersion: number`, `name: string` (1–14 chars), `sessionToken?: string` | First message. Include `sessionToken` to reconnect to an existing seat. |
+| `hello` | `protocolVersion: number`, `name: string` (1–14 chars), `sessionToken?: string`, `loginToken?: string` | First message. Include `sessionToken` to reconnect to an existing seat. Include `loginToken` to resume a logged-in account (see Accounts below). |
 | `queueJoin` | — | Enter the public matchmaking queue. |
 | `queueCancel` | — | Leave the public queue. Answered with `queueCancelled`. |
 | `roomCreatePrivate` | — | Create a private room; the server replies with a join code. |
@@ -47,6 +47,12 @@ Nothing is silently absorbed.
 | `submitTurn` | `cardInstanceId: string`, `targetTrayIds: string[]` | Commit this round's move: play that specific card from your hand against the listed trays on your own table. For a card that takes N targets, send exactly N ids. **Send `card.instanceId`, not `card.id`** — see below. |
 | `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
 | `ping` | — | Liveness check; answered with `pong`. |
+| `accountRegister` | `username: string`, `password: string` | Create an account. The field limits on the wire are loose; the server applies the real username/password rules and answers `accountError` with a specific code on failure. |
+| `accountLogin` | `username: string`, `password: string` | Log in to an existing account. |
+| `accountLogout` | — | Log out of the current account. Answered with `accountLoggedOut` `reason: "requested"`. |
+| `accountChangePassword` | `currentPassword: string`, `newPassword: string` | Change the password on the logged-in account. Answered with `passwordChanged` or `accountError`. |
+| `appearanceSet` | `appearance: Appearance` | Set the sender's on-board look. For a logged-in session this also saves to the account. |
+| `profileRequest` | — | Ask for the current account's profile. Answered with `profile`. |
 
 `submitTurn` is the only in-game action, and it is **semantic** — it names what you did in
 game terms, never UI events (no clicks/drags/selection). Selection and targeting order are
@@ -69,6 +75,11 @@ the client's business and resolve to this one committed action.
 | `opponentDisconnected` | `graceEndsAt: number` (epoch ms) | Your opponent dropped; the room is paused until they reconnect or the grace window ends. |
 | `opponentReconnected` | — | Your opponent returned within the grace window; play resumes. |
 | `pong` | — | Reply to `ping`. |
+| `accountLoggedIn` | `profile: Profile`, `loginToken?: string` | A successful `accountRegister`/`accountLogin`, or a resumed `hello` with a valid `loginToken`. `loginToken` is present for a new login and absent on a resume. |
+| `accountLoggedOut` | `reason: "requested" \| "expired"` | Acknowledges `accountLogout` (`"requested"`), or a `hello` with an unknown/expired `loginToken` (`"expired"`; the session continues as a guest). |
+| `accountError` | `code: AccountErrorCode`, `message: string` | An account operation failed. See account error codes below. |
+| `profile` | `profile: Profile` | Answers `profileRequest`. |
+| `passwordChanged` | — | Acknowledges a successful `accountChangePassword`. |
 
 ### `roomState` (the per-player view)
 
@@ -87,6 +98,7 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "name": string,
     "score": number,             // total eaten so far
     "submitted": boolean,        // have you committed this round
+    "appearance": Appearance | null,   // null if never set
     "table": [ { "id": string, "value": number }, ... ],   // front tray first
     "hand": [ { "id": string, "instanceId": string, "name": string,
                "action": "add" | "multiply", "amount": number, "targets": number }, ... ]
@@ -96,6 +108,7 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "name": string,
     "score": number,
     "submitted": boolean,
+    "appearance": Appearance | null,   // null if never set
     "handCount": number,         // COUNT only — never the opponent's cards
     "table": [ { "id": string, "value": number }, ... ]
   }
@@ -136,12 +149,37 @@ ordinary value — render it, do not treat it as a missing winner.
 `NOT_IN_ROOM`, `NOT_YOUR_TURN`, `ALREADY_SUBMITTED`, `CARD_NOT_HELD`,
 `WRONG_TARGET_COUNT`, `BAD_TARGET`.
 
+## Accounts, appearance, and profiles
+
+**`Appearance`.** A kid's on-board look: `skinTone`, `hairStyle`, `hairColor`, `shirtColor`,
+`pantsColor`, `accessory`. Each field is one of a fixed, protocol-defined list of values —
+not any string or color. A guest sends `appearanceSet` to set their own look for the current
+connection. A logged-in session's `appearanceSet` also saves the look to the account.
+
+**`Profile`.** `username`, `role` (`player` | `admin` | `creator`), `permissions` (the array
+for that role), `appearance` (nullable), `pointsScored`, `gamesPlayed`, `gamesWon`,
+`createdAt`, `lastLoginAt` (nullable). Sent in `accountLoggedIn` and `profile`.
+
+**Account error codes.** `accountError.code` is one of: `INVALID_USERNAME`,
+`INVALID_PASSWORD`, `USERNAME_TAKEN`, `BAD_CREDENTIALS`, `WRONG_PASSWORD`, `RATE_LIMITED`,
+`NOT_LOGGED_IN`, `BUSY`. `BAD_CREDENTIALS` never says which of username or password was
+wrong.
+
+**Login and resume.** A successful `accountRegister` or `accountLogin` answers
+`accountLoggedIn` with the profile and a fresh `loginToken`. Store that token and send it as
+`hello.loginToken` on a later connection to resume the account:
+
+- A valid `loginToken` on `hello`: the server answers `welcome`, then `accountLoggedIn` with
+  the profile and no `loginToken` (the existing token is still good).
+- An unknown or expired `loginToken` on `hello`: the server answers `welcome`, then
+  `accountLoggedOut` with `reason: "expired"`, and the session continues as a guest.
+
 ## Typical sequences
 
 **Matchmake and play a round**
 
 ```
-C→S hello {protocolVersion:2, name:"Riley"}
+C→S hello {protocolVersion:3, name:"Riley"}
 S→C welcome {playerId, sessionToken}
 C→S queueJoin
 S→C queueWaiting                     (until an opponent arrives)
@@ -153,6 +191,20 @@ S→C roomState (you.submitted:true)
 S→C roomState (roundIndex incremented, new deadlineAt)
 ```
 
+**Resume a logged-in account**
+
+```
+C→S hello {protocolVersion:3, name:"Riley", loginToken:<stored token>}
+S→C welcome {playerId, sessionToken}
+S→C accountLoggedIn {profile}                (no loginToken: the stored one is still good)
+```
+
+```
+C→S hello {protocolVersion:3, name:"Riley", loginToken:<unknown or expired>}
+S→C welcome {playerId, sessionToken}
+S→C accountLoggedOut {reason:"expired"}       session continues as a guest
+```
+
 **Disconnect and reconnect**
 
 ```
@@ -160,7 +212,7 @@ S→C roomState (roundIndex incremented, new deadlineAt)
  ping goes unanswered for HEARTBEAT_TIMEOUT_MS and the socket is dropped)
 S→C(opponent) opponentDisconnected {graceEndsAt}     room is now paused
 (within grace, dropped client opens a new socket)
-C→S hello {protocolVersion:2, name:"Riley", sessionToken:<same token>}
+C→S hello {protocolVersion:3, name:"Riley", sessionToken:<same token>}
 S→C welcome {playerId:<same>, sessionToken:<same>}
 S→C(opponent) opponentReconnected
 S→C(both) roomState {phase:"in-progress", ...}       full view resent
