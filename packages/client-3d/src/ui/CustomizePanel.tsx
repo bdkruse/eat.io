@@ -117,7 +117,7 @@ export function CustomizePanel() {
         </button>
       </div>
       <p className="panel__note">
-        {state.account ? "Saved to your account." : "Only you see this look, and it resets when you reload."}
+        {state.account ? "Saved to your account." : "Your opponent sees this look. It resets when you reload."}
       </p>
     </section>
   );
