@@ -23,6 +23,14 @@ npm run dev:3d      # terminal 2 — the client on :5174; open it in two windows
 With no browser handy, `node scripts/play-demo.mjs` runs two bots through a full game
 against the server.
 
+## Accounts
+
+Players can register, log in, and keep stats across games, or play as a guest with no
+account. Accounts are documented in [`packages/server/README.md`](./packages/server/README.md),
+the login token stored in the browser in
+[`packages/client-3d/README.md`](./packages/client-3d/README.md), and the wire format in
+[`packages/server/PROTOCOL.md`](./packages/server/PROTOCOL.md).
+
 ## Try it
 
 Without a browser, `scripts/play-demo.mjs` connects two bots over real WebSockets and

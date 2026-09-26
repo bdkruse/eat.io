@@ -100,6 +100,18 @@ every screen, including mid-game. The choice resets on reload.
 Low detail draws a fixed subset of the same kids, so switching never reshuffles the room.
 The game table is identical in both modes. The budgets are data in `src/scene/detail.ts`.
 
+## Accounts
+
+A player can register, log in, and see their profile from the menu panels, or skip all of
+it and play as a guest. Logging in or registering stores a login token in the browser's
+`localStorage`, under the key `eatio.loginToken`, for 30 days. On a later visit the stored
+token resumes the account automatically, with no password prompt. Logging out, or an
+expired or unknown token, clears it and the session continues as a guest.
+
+Account rules (username and password format, roles, stats) are documented in
+[`packages/server/README.md`](../server/README.md). The wire messages are in
+[`PROTOCOL.md`](../server/PROTOCOL.md).
+
 ## Customization
 
 Skin tone, hair style, hair color, shirt, pants, and one extra (glasses, cap, headband, or

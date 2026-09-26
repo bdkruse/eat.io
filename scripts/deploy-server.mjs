@@ -17,3 +17,7 @@ run("bonto", ["files", "upload", app, "server.mjs", `${bundleDirectory}/server.m
 run("bonto", ["files", "upload", app, "package.json", `${bundleDirectory}/package.json`]);
 run("bonto", ["restart", app]);
 console.log(`Deployed to https://${app}.bonto.run (WebSocket: wss://${app}.bonto.run)`);
+console.log(
+  "Reminder: the accounts database lives at data/eatio.sqlite on the host and is never " +
+    "uploaded by this script. See packages/server/README.md for seeding a fresh host.",
+);

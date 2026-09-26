@@ -39,6 +39,50 @@ Configuration is environment-driven (all optional; defaults shown):
 | `HAND_SIZE` | `5` | Cards in hand |
 | `RNG_SEED` | random | Fix for reproducible games |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
+| `DATABASE_PATH` | `data/eatio.sqlite` | Accounts database file, relative to the working directory (`:memory:` for a throwaway one) |
+
+## Accounts
+
+Player accounts are backed by SQLite (`better-sqlite3`). The database opens from
+`DATABASE_PATH` and migrates automatically on startup.
+
+A username is 3 to 14 letters, numbers, `_`, or `-`. Usernames are unique regardless of
+capitalization. A password is 8 to 128 characters.
+
+A successful login or registration returns a login token. The client stores that token for
+30 days and sends it back on `hello` to resume the account. See
+[`PROTOCOL.md`](./PROTOCOL.md) for the wire format.
+
+Roles are `player` (default), `admin`, and `creator`. Each role has a set of permissions,
+defined in `@eat.io/protocol`: `admin` gets `admin.open`, and `creator` gets every
+permission. A guest with no account can still play, using only a display name and a
+session token.
+
+Per-account stats are recorded only for games that finish: points scored, games played,
+games won, the created date, and the last login date.
+
+### Seeding accounts
+
+```bash
+npm run accounts:seed                          # against DATABASE_PATH
+npm run accounts:seed -- --database ./path.sqlite   # against a specific file
+```
+
+This creates or promotes the seed accounts: Bain as `creator`, and Noah, Ruby, Mindi, and
+Clint as `admin`. It prompts for a hidden password for each new account. Press Enter
+instead to generate one. The generated password prints once. No passwords live in the
+repo. An account that already exists only has its role brought in line.
+
+### Production seeding
+
+The Bonto host has no shell. Seed a fresh local file first, then upload it once before the
+first player registers:
+
+```bash
+npm run accounts:seed -- --database /tmp/eatio-seed.sqlite
+bonto files upload eatio data/eatio.sqlite /tmp/eatio-seed.sqlite
+npm run deploy:server
+```
 
 ## Architecture
 
@@ -74,8 +118,8 @@ a round limit without scores deciding when to stop.
 
 ## Known limitations (deliberate for this build)
 
-- In-memory only — no persistence; restarting the process drops all games.
-- No auth/accounts — just a display name and a session token.
+- Game state is in-memory only — restarting the process drops all in-progress games.
+  Accounts persist, in the SQLite database described above.
 - Single process — no clustering or shared state.
 - No "what would this card do?" preview query yet (the protocol union leaves room to add a
   read-only query without restructuring).
