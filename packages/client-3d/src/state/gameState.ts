@@ -46,6 +46,14 @@ export interface AppState {
   account: Profile | null;
   accountError: AccountErrorState | null;
   accountNotice: AccountNotice | null;
+  /**
+   * True from the moment a login or registration attempt is sent until it resolves
+   * (accountLoggedIn, accountLoggedOut, or accountError), or until backToMenu. While true,
+   * this connection cannot yet be assumed to belong to a guest (fix round 1: `welcome` and
+   * `accountLoggedIn`/`accountError` are separate messages, so there is always a gap where
+   * identity is set but account is still null even for a login or a token resume).
+   */
+  accountPending: boolean;
 }
 
 export const initialAppState: AppState = {
@@ -61,6 +69,7 @@ export const initialAppState: AppState = {
   account: null,
   accountError: null,
   accountNotice: null,
+  accountPending: false,
 };
 
 export type Screen = "connect" | "queue" | "game" | "gameOver";
@@ -93,4 +102,19 @@ export function selectYourCard(
 ): CardView | undefined {
   if (!cardInstanceId || !state.room) return undefined;
   return state.room.you.hand.find((card) => card.instanceId === cardInstanceId);
+}
+
+/**
+ * Whether this connection should share its local look with the server as a guest's.
+ * True only once identity is established, no account is attached, AND no login or
+ * registration attempt is in flight — a login and a token resume both leave a window
+ * where identity is set but account is still null, and that window must not be mistaken
+ * for "definitely a guest" (fix round 1, §11).
+ */
+export function shouldShareGuestLook(input: {
+  identitySet: boolean;
+  account: Profile | null;
+  accountPending: boolean;
+}): boolean {
+  return input.identitySet && input.account === null && !input.accountPending;
 }

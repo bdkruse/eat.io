@@ -1,10 +1,11 @@
 import { expect, test } from "vitest";
-import type { RoomStateMessage } from "@eat.io/protocol";
+import type { Profile, RoomStateMessage } from "@eat.io/protocol";
 import {
   initialAppState,
   selectAwaitingYou,
   selectBoardFrozen,
   selectScreen,
+  shouldShareGuestLook,
   type AppState,
 } from "../src/state/gameState.js";
 
@@ -65,4 +66,57 @@ test("a connected player with nothing in flight stays on connect to choose how t
 
 test("holding a private room code shows the waiting screen", () => {
   expect(selectScreen(seated({ privateCode: "0427" }))).toBe("queue");
+});
+
+const profile = (over: Partial<Profile> = {}): Profile => ({
+  username: "Riley",
+  role: "player",
+  permissions: [],
+  appearance: null,
+  pointsScored: 0,
+  gamesPlayed: 0,
+  gamesWon: 0,
+  createdAt: 1_700_000_000_000,
+  lastLoginAt: null,
+  ...over,
+});
+
+test("shouldShareGuestLook: a guest connection shares its look", () => {
+  expect(
+    shouldShareGuestLook({ identitySet: true, account: null, accountPending: false }),
+  ).toBe(true);
+});
+
+test("shouldShareGuestLook: a login or registration in flight is not yet a guest", () => {
+  expect(
+    shouldShareGuestLook({ identitySet: true, account: null, accountPending: true }),
+  ).toBe(false);
+});
+
+test("shouldShareGuestLook: a logged-in player is never treated as a guest", () => {
+  expect(
+    shouldShareGuestLook({ identitySet: true, account: profile(), accountPending: false }),
+  ).toBe(false);
+});
+
+test("shouldShareGuestLook: identity not yet established shares nothing", () => {
+  expect(
+    shouldShareGuestLook({ identitySet: false, account: null, accountPending: false }),
+  ).toBe(false);
+});
+
+test("shouldShareGuestLook: a failed login attempt reverts to sharing the guest look", () => {
+  // accountError clears accountPending while account stays null — this is the shape of
+  // state right after a login or registration attempt fails.
+  expect(
+    shouldShareGuestLook({ identitySet: true, account: null, accountPending: false }),
+  ).toBe(true);
+});
+
+test("shouldShareGuestLook: an expired resume reverts to sharing the guest look", () => {
+  // accountLoggedOut clears accountPending while account stays null — the same shape as a
+  // failed login, reached instead by a stored token the server rejected.
+  expect(
+    shouldShareGuestLook({ identitySet: true, account: null, accountPending: false }),
+  ).toBe(true);
 });

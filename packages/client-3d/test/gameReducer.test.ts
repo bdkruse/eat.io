@@ -266,3 +266,32 @@ test("a connection-phase change does not clear the logged-in account", () => {
   });
   expect(state.account).toEqual(profile());
 });
+
+test("accountAttemptStarted marks an account attempt in flight", () => {
+  const state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
+  expect(state.accountPending).toBe(true);
+});
+
+test("accountLoggedIn clears a pending account attempt", () => {
+  let state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
+  state = server(state, { type: "accountLoggedIn", profile: profile() });
+  expect(state.accountPending).toBe(false);
+});
+
+test("accountLoggedOut clears a pending account attempt", () => {
+  let state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
+  state = server(state, { type: "accountLoggedOut", reason: "expired" });
+  expect(state.accountPending).toBe(false);
+});
+
+test("accountError clears a pending account attempt", () => {
+  let state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
+  state = server(state, { type: "accountError", code: "BAD_CREDENTIALS", message: "nope" });
+  expect(state.accountPending).toBe(false);
+});
+
+test("backToMenu clears a pending account attempt", () => {
+  let state = gameReducer(welcomed(), { kind: "accountAttemptStarted" });
+  state = gameReducer(state, { kind: "backToMenu" });
+  expect(state.accountPending).toBe(false);
+});

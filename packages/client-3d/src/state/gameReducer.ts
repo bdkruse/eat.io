@@ -10,7 +10,8 @@ export type Action =
   | { kind: "playAgain" }
   | { kind: "backToMenu" }
   | { kind: "dismissRejection" }
-  | { kind: "dismissAccountError" };
+  | { kind: "dismissAccountError" }
+  | { kind: "accountAttemptStarted" };
 
 /** Everything a new room must not inherit from the previous one (§2.5). */
 const CLEARED_FOR_NEW_ROOM = {
@@ -47,6 +48,8 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...state, rejection: null };
     case "dismissAccountError":
       return { ...state, accountError: null };
+    case "accountAttemptStarted":
+      return { ...state, accountPending: true };
     default: {
       const never: never = action;
       return never;
@@ -127,11 +130,12 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       return state; // liveness only; handled so the switch stays exhaustive
 
     case "accountLoggedIn":
-      // A fresh login or a token resume — either way, any earlier account error is moot.
-      return { ...state, account: msg.profile, accountError: null };
+      // A fresh login or a token resume — either way, any earlier account error is moot,
+      // and whatever attempt was pending has now resolved.
+      return { ...state, account: msg.profile, accountError: null, accountPending: false };
 
     case "accountLoggedOut":
-      return { ...state, account: null };
+      return { ...state, account: null, accountPending: false };
 
     case "accountError":
       return {
@@ -141,6 +145,7 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
           message: msg.message,
           seq: (state.accountError?.seq ?? 0) + 1,
         },
+        accountPending: false,
       };
 
     case "profile":

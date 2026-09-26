@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { useGame } from "./GameProvider.js";
-import { selectYourCard, type AppState } from "./gameState.js";
+import { selectYourCard, shouldShareGuestLook, type AppState } from "./gameState.js";
 import {
   emptySelection,
   isSubmittable,
@@ -91,21 +91,29 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     setSelection(emptySelection);
   }, [roundIndex]);
 
-  // A freshly connected guest shares its local look, so the opponent sees it too. A
-  // connection that turns out to be a login instead is handled by the effect below, once
-  // the account itself arrives.
-  const identityPlayerId = state.identity?.playerId ?? null;
-  const previousIdentityRef = useRef<string | null>(null);
+  // A guest connection shares its local look, so the opponent sees it too. This must NOT
+  // fire while a login or registration attempt is still in flight: `welcome` (which sets
+  // identity) and `accountLoggedIn`/`accountError` (which resolve the attempt) are always
+  // separate messages, so there is a real gap where identity is set but account is still
+  // null even for a login or a token resume — shouldShareGuestLook accounts for that gap
+  // via accountPending (fix round 1). It fires again once that gap closes without an
+  // account: a failed login, an expired resume, or a logout while connected all leave a
+  // guest whose look has never been shared (or needs re-sharing).
+  const shouldShareNow = shouldShareGuestLook({
+    identitySet: state.identity !== null,
+    account: state.account,
+    accountPending: state.accountPending,
+  });
+  const previousShouldShareRef = useRef(false);
   useEffect(() => {
-    const wasDisconnected = previousIdentityRef.current === null;
-    if (wasDisconnected && identityPlayerId !== null && state.account === null) {
+    if (!previousShouldShareRef.current && shouldShareNow) {
       sendAppearanceToServer(appearance);
     }
-    previousIdentityRef.current = identityPlayerId;
-    // Only the moment identity is newly established matters here; `appearance` is read at
-    // that moment, not watched, so editing your look afterward must not re-fire this.
+    previousShouldShareRef.current = shouldShareNow;
+    // `appearance` is read at the moment of the transition, not watched, so editing your
+    // look afterward must not re-fire this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [identityPlayerId, state.account]);
+  }, [shouldShareNow]);
 
   // Logging in replaces the local look with the account's saved one. A brand-new account
   // has none yet, so it is seeded with whatever look was already in use instead (§11).

@@ -16,6 +16,7 @@ import { useConnection } from "../connection/useConnection.js";
 import { gameReducer } from "./gameReducer.js";
 import { initialAppState, type AppState } from "./gameState.js";
 import { clearLoginToken, loadLoginToken, loadServerUrl, saveLoginToken, saveServerUrl } from "./loginStorage.js";
+import { createPendingAccountMessageHolder } from "./pendingAccountMessage.js";
 
 export interface GameApi {
   state: AppState;
@@ -54,13 +55,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // synchronously each render, well before any socket message could arrive.
   const sendRef = useRef<(msg: ClientMessage) => void>(() => {});
   // The register/login command connectAndRegister/connectAndLogin want to send right
-  // after the welcome that follows their connect (§11).
-  const pendingAccountMessageRef = useRef<ClientMessage | null>(null);
+  // after the welcome that follows their connect (§11). A plain connect or a disconnect
+  // must drop anything left waiting here, so it can never leak into a later, unrelated
+  // connection (fix round 1).
+  const pendingAccountMessageHolderRef = useRef(createPendingAccountMessageHolder());
 
   const handleMessage = useCallback((msg: ServerMessage) => {
-    if (msg.type === "welcome" && pendingAccountMessageRef.current) {
-      sendRef.current(pendingAccountMessageRef.current);
-      pendingAccountMessageRef.current = null;
+    if (msg.type === "welcome") {
+      const pending = pendingAccountMessageHolderRef.current.take();
+      if (pending) sendRef.current(pending);
     }
     if (msg.type === "accountLoggedIn" && msg.loginToken) {
       saveLoginToken(msg.loginToken);
@@ -75,13 +78,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ kind: "connection", state: next });
   }, []);
 
-  const { connect: rawConnect, disconnect, send } = useConnection(handleMessage, handleConnectionChange);
+  const { connect: rawConnect, disconnect: rawDisconnect, send } = useConnection(
+    handleMessage,
+    handleConnectionChange,
+  );
 
   useEffect(() => {
     sendRef.current = send;
   }, [send]);
 
-  const connect = useCallback(
+  // The connectAndRegister/connectAndLogin path below sets a pending message and then
+  // calls THIS, not the public `connect` — the public one clears any pending message on
+  // the way in, which would otherwise wipe out the message they just set.
+  const connectKeepingPending = useCallback(
     (url: string, name: string, loginToken?: string) => {
       saveServerUrl(url);
       rawConnect(url, name, loginToken);
@@ -89,11 +98,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     [rawConnect],
   );
 
+  const connect = useCallback(
+    (url: string, name: string, loginToken?: string) => {
+      pendingAccountMessageHolderRef.current.clear();
+      connectKeepingPending(url, name, loginToken);
+    },
+    [connectKeepingPending],
+  );
+
+  const disconnect = useCallback(() => {
+    pendingAccountMessageHolderRef.current.clear();
+    rawDisconnect();
+  }, [rawDisconnect]);
+
   // A stored login token means a returning player — resume the connection before they
-  // touch anything, and fall back to the menu as usual if that fails (§11).
+  // touch anything, and fall back to the menu as usual if that fails (§11). Marked as a
+  // pending account attempt so the guest-look effect does not fire mid-resume and
+  // overwrite the account's real saved look the instant `welcome` arrives (fix round 1).
   useEffect(() => {
     const loginToken = loadLoginToken();
     if (!loginToken) return;
+    dispatch({ kind: "accountAttemptStarted" });
     connect(resumeServerUrl(loadServerUrl()), "Player", loginToken);
     // Runs once, on mount, to auto-resume — not on every change to `connect`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -104,12 +129,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       state,
       connect,
       connectAndRegister: (url, username, password) => {
-        pendingAccountMessageRef.current = { type: "accountRegister", username, password };
-        connect(url, username);
+        dispatch({ kind: "accountAttemptStarted" });
+        pendingAccountMessageHolderRef.current.set({ type: "accountRegister", username, password });
+        connectKeepingPending(url, username);
       },
       connectAndLogin: (url, username, password) => {
-        pendingAccountMessageRef.current = { type: "accountLogin", username, password };
-        connect(url, username);
+        dispatch({ kind: "accountAttemptStarted" });
+        pendingAccountMessageHolderRef.current.set({ type: "accountLogin", username, password });
+        connectKeepingPending(url, username);
       },
       leaveToMenu: () => {
         disconnect();
@@ -129,8 +156,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
       dismissRejection: () => dispatch({ kind: "dismissRejection" }),
       noteLocalRejection: (message) => dispatch({ kind: "localRejection", message }),
       setName: (name) => dispatch({ kind: "nameChanged", name }),
-      register: (username, password) => send({ type: "accountRegister", username, password }),
-      login: (username, password) => send({ type: "accountLogin", username, password }),
+      register: (username, password) => {
+        dispatch({ kind: "accountAttemptStarted" });
+        send({ type: "accountRegister", username, password });
+      },
+      login: (username, password) => {
+        dispatch({ kind: "accountAttemptStarted" });
+        send({ type: "accountLogin", username, password });
+      },
       logout: () => send({ type: "accountLogout" }),
       changePassword: (currentPassword, newPassword) =>
         send({ type: "accountChangePassword", currentPassword, newPassword }),
@@ -138,7 +171,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       requestProfile: () => send({ type: "profileRequest" }),
       dismissAccountError: () => dispatch({ kind: "dismissAccountError" }),
     }),
-    [state, connect, disconnect, send],
+    [state, connect, connectKeepingPending, disconnect, send],
   );
 
   return <GameContext.Provider value={api}>{children}</GameContext.Provider>;
