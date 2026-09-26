@@ -1,0 +1,41 @@
+/* The classic client's palette, carried into the lunchroom. Two seat accents only. */
+:root {
+  --surface: #fbf8f1;
+  --surface-glass: rgba(251, 248, 241, 0.94);
+  --line: #e2d8c4;
+  --well: #efe8d8;
+
+  --ink: #232a24;
+  --ink-2: #5c6b5f;
+  --ink-3: #8a988c;
+
+  --you: #d94f3d;
+  --you-deep: #b83e2e;
+  --opponent: #4a7fa5;
+  --opponent-deep: #3a6687;
+  --add: #5f9e4a;
+  --multiply: #e8a33d;
+  --gold: #ffd34d;
+
+  --font-structural: "Outfit", system-ui, sans-serif;
+  --font-body: "Karla", system-ui, sans-serif;
+
+  /* Hard offset, never blurred: surfaces read as moulded plastic. */
+  --shadow: 0 5px 0 rgba(35, 42, 36, 0.2);
+  --shadow-deep: 0 9px 0 rgba(35, 42, 36, 0.22), 0 18px 40px rgba(35, 42, 36, 0.18);
+  --radius: 16px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--ink);
+  background: #e9e4d6;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-structural); margin: 0; }

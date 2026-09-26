@@ -1,0 +1,27 @@
+/* Styles for the classic client's overlays, reused as-is. */
+.banner {
+  position: absolute; top: 70px; left: 50%; transform: translateX(-50%); z-index: 30;
+  background: var(--multiply); color: var(--ink); font-family: var(--font-structural); font-weight: 700;
+  padding: 12px 18px; border-radius: var(--radius); box-shadow: var(--shadow); max-width: calc(100vw - 32px);
+}
+
+.toast {
+  position: fixed; left: 50%; top: 110px; transform: translateX(-50%) translateY(-12px); z-index: 40;
+  display: flex; gap: 12px; align-items: flex-start; max-width: 420px;
+  background: var(--you); color: #fff; padding: 14px 18px; border-radius: var(--radius);
+  box-shadow: var(--shadow-deep); animation: toast-in 180ms ease-out forwards;
+}
+@keyframes toast-in { to { transform: translateX(-50%) translateY(0); } }
+.toast__disc {
+  width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--you);
+  display: grid; place-items: center; font-family: var(--font-structural); font-weight: 800; flex: none;
+}
+.toast__heading { font-family: var(--font-structural); font-weight: 700; }
+
+.modal-scrim { position: fixed; inset: 0; background: rgba(35, 42, 36, 0.5); display: grid; place-items: center; z-index: 50; }
+.modal {
+  background: var(--surface); padding: 28px; border-radius: 22px;
+  box-shadow: var(--shadow-deep); max-width: 420px; text-align: center; line-height: 1.5;
+}
+.modal__bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 16px 0; }
+.modal__bar span { display: block; height: 100%; background: var(--multiply); transition: width 200ms linear; }
