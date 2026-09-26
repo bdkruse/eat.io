@@ -1,0 +1,57 @@
+# Builds the 3D client and publishes it to GitHub Pages on every push to main.
+#
+# Repository variable (Settings > Secrets and variables > Actions > Variables):
+#   SERVER_URL  the game server's wss:// address. Unset, the menu shows a Server field.
+name: Deploy client to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time; a newer push replaces a queued one, but never cancels one mid-deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+
+      - name: Build the client
+        run: npm run build --workspace @eat.io/client-3d
+        env:
+          # A project site is served from /<repo>/, not the domain root.
+          BASE_PATH: /${{ github.event.repository.name }}/
+          VITE_SERVER_URL: ${{ vars.SERVER_URL }}
+
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: packages/client-3d/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
