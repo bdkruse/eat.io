@@ -5,6 +5,7 @@ import {
   type ClientMessage,
   type ServerMessage,
 } from "@eat.io/protocol";
+import { buildHello, nextLoginToken } from "./hello.js";
 import {
   backoffMs,
   connectionReducer,
@@ -29,7 +30,11 @@ export function useConnection(
   const socketRef = useRef<WebSocket | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionRef = useRef<string | null>(null);
-  const targetRef = useRef<{ url: string; name: string; loginToken?: string } | null>(null);
+  const targetRef = useRef<{ url: string; name: string } | null>(null);
+  // The account's CURRENT login token, read by every socket open. Seeded by connect()
+  // and kept up to date from the messages themselves, so a fresh login, a register, or a
+  // logout is reflected in the very next reconnect's hello (final review, item 1).
+  const loginTokenRef = useRef<string | null>(null);
   const wantOpenRef = useRef(false);
   const stateRef = useRef<ConnectionState>(initialConnectionState);
 
@@ -58,16 +63,14 @@ export function useConnection(
 
     socket.addEventListener("open", () => {
       applyEvent({ type: "opened" });
-      // A reconnect resends both tokens it has — sessionToken to reclaim the same
-      // in-progress connection, loginToken to resume the account — on every open, not
-      // just the first (§11: a stored login token must survive a dropped socket too).
-      const hello: Extract<ClientMessage, { type: "hello" }> = {
-        type: "hello",
+      // Built fresh on every open, not just the first (§11: a login must survive a
+      // dropped socket too).
+      const hello = buildHello({
         protocolVersion: PROTOCOL_VERSION,
         name: target.name,
-      };
-      if (sessionRef.current) hello.sessionToken = sessionRef.current;
-      if (target.loginToken) hello.loginToken = target.loginToken;
+        sessionToken: sessionRef.current,
+        loginToken: loginTokenRef.current,
+      });
       socket.send(JSON.stringify(hello));
     });
 
@@ -82,6 +85,7 @@ export function useConnection(
         return;
       }
       if (msg.type === "welcome") sessionRef.current = msg.sessionToken;
+      loginTokenRef.current = nextLoginToken(loginTokenRef.current, msg);
       messageRef.current(msg);
     });
 
@@ -104,9 +108,10 @@ export function useConnection(
 
   const connect = useCallback(
     (url: string, name: string, loginToken?: string) => {
-      targetRef.current = { url, name, ...(loginToken !== undefined ? { loginToken } : {}) };
+      targetRef.current = { url, name };
       wantOpenRef.current = true;
       sessionRef.current = null; // a fresh connect is a new session, not a reconnect
+      loginTokenRef.current = loginToken ?? null;
       openSocket();
     },
     [openSocket],
@@ -115,6 +120,7 @@ export function useConnection(
   const disconnect = useCallback(() => {
     wantOpenRef.current = false;
     sessionRef.current = null;
+    loginTokenRef.current = null;
     if (retryRef.current) clearTimeout(retryRef.current);
     retryRef.current = null;
     socketRef.current?.close();

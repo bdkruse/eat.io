@@ -203,6 +203,22 @@ test("a logged-in session that reconnects with its session token stays logged in
   expect(lastOf(rileyAgain.out, "profile")?.profile.username).toBe("Riley_1");
 });
 
+test("a session dropped outside a room comes back logged in when the hello also carries the login token", () => {
+  const { lobby } = makeLobby();
+  const riley = registered(lobby, "Riley_1");
+  const sessionToken = (riley.out[0] as WelcomeMessage).sessionToken;
+  const loginToken = lastOf(riley.out, "accountLoggedIn")!.loginToken!;
+  lobby.handleClose(riley.socket); // at the menu, so the server forgets the session
+
+  const rileyAgain = connection();
+  lobby.handleMessage(rileyAgain.socket, hello("Riley_1", { sessionToken, loginToken }));
+  expect(rileyAgain.out.map((message) => message.type)).toEqual(["welcome", "accountLoggedIn"]);
+  expect((rileyAgain.out[0] as WelcomeMessage).sessionToken).not.toBe(sessionToken);
+  expect(lastOf(rileyAgain.out, "accountLoggedIn")?.profile.username).toBe("Riley_1");
+  lobby.handleMessage(rileyAgain.socket, { type: "profileRequest" });
+  expect(lastOf(rileyAgain.out, "profile")?.profile.username).toBe("Riley_1");
+});
+
 test("two sessions of one account never pair in the public queue", () => {
   const { lobby } = makeLobby();
   const rileyFirstTab = registered(lobby, "Riley_1");
