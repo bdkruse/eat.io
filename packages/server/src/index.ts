@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import type { Config } from "./config.js";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
@@ -31,8 +33,19 @@ export function createServer(config: Config = loadConfig()): Promise<Transport> 
   return startTransport({ lobby, config, logger });
 }
 
-// Run when executed directly (tsx packages/server/src/index.ts).
-const isMain = import.meta.url === `file://${process.argv[1]}`;
+// Run when executed directly — `tsx packages/server/src/index.ts` in development, or
+// `node server.mjs` for the deployed bundle. Real paths, so symlinks and URL escaping
+// in the path cannot make the check miss.
+function runDirectly(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+const isMain = runDirectly();
 if (isMain) {
   const config = loadConfig();
   const logger = createLogger(config.logLevel, { app: "eatio" });

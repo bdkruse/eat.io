@@ -1,4 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { parseClientMessage, type ClientMessage, type ServerMessage } from "@eat.io/protocol";
 import type { Connection } from "../lobby/lobby.js";
@@ -23,7 +24,13 @@ export function startTransport(deps: {
   logger: Logger;
 }): Promise<Transport> {
   const { lobby, config, logger } = deps;
-  const wss = new WebSocketServer({ port: config.port });
+  // A plain web request gets a short "ok": hosting health checks probe with ordinary HTTP,
+  // and would read the WebSocket library's default 426 as a dead server.
+  const httpServer = createServer((_request, response) => {
+    response.writeHead(200, { "content-type": "text/plain" });
+    response.end("eat.io server ok\n");
+  });
+  const wss = new WebSocketServer({ server: httpServer });
   // A socket with an entry here has been pinged and owes us a pong.
   const awaitingPong = new Map<WebSocket, ReturnType<typeof setTimeout>>();
 
@@ -92,8 +99,8 @@ export function startTransport(deps: {
   wss.on("close", () => clearInterval(heartbeat));
 
   return new Promise<Transport>((resolve) => {
-    wss.on("listening", () => {
-      const port = (wss.address() as AddressInfo).port;
+    httpServer.listen(config.port, () => {
+      const port = (httpServer.address() as AddressInfo).port;
       logger.info("listening", { port });
       resolve({
         port,
@@ -110,7 +117,7 @@ export function startTransport(deps: {
             force.unref?.();
             wss.close(() => {
               clearTimeout(force);
-              res();
+              httpServer.close(() => res());
             });
           }),
       });

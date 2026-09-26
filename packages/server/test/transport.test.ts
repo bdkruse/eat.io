@@ -62,3 +62,11 @@ test("a valid message reaches the lobby; closing calls handleClose", async () =>
   await nextTick();
   expect(rec.closedCount()).toBe(1);
 });
+
+test("a plain web request gets a 200 so hosting health checks see the server as up", async () => {
+  const rec = recordingLobby();
+  transport = await startTransport({ lobby: rec.lobby, config: loadConfig({ PORT: "0" }), logger: createLogger("error") });
+  const response = await fetch(`http://127.0.0.1:${transport.port}/`);
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain("ok");
+});
