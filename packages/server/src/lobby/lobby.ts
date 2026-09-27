@@ -1,12 +1,22 @@
 import {
+  DECK_LIMITS,
   PROTOCOL_VERSION,
+  deckProblem,
+  permissionsFor,
+  settingsProblem,
   type AccountErrorCode,
+  type AdminErrorCode,
   type ClientMessage,
+  type DeckEntry,
+  type GameSettings,
+  type Permission,
   type ServerMessage,
 } from "@eat.io/protocol";
 import type { AccountRecord, AccountStore } from "../accounts/accountStore.js";
+import type { GameConfigStore } from "../gameConfig/gameConfigStore.js";
 import type { PlayerId } from "../engine/state.js";
-import type { Rules } from "../engine/rules/index.js";
+import { makeRules } from "../engine/rules/index.js";
+import { CARD_CATALOG, STARTING_DECK } from "../engine/rules/content.js";
 import type { Config } from "../config.js";
 import type { Logger } from "../logger.js";
 import type { Clock, Timers } from "./timers.js";
@@ -22,7 +32,6 @@ export interface Connection {
 
 export interface LobbyDeps {
   config: Config;
-  rules: Rules;
   clock: Clock;
   timers: Timers;
   registry: RoomRegistry;
@@ -31,6 +40,8 @@ export interface LobbyDeps {
   genId: () => string;
   genToken: () => string;
   accounts: AccountStore;
+  /** Game settings and the default deck. Each room reads them once, when it starts. */
+  gameConfig: GameConfigStore;
 }
 
 const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
@@ -46,6 +57,10 @@ const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
 
 /** BUSY also covers a register or login from a session that already has an account. */
 const LOG_OUT_FIRST_MESSAGE = "Log out first.";
+
+const FORBIDDEN_MESSAGE = "You do not have permission to do that.";
+
+const CATALOG_CARD_IDS: readonly string[] = CARD_CATALOG.map((card) => card.id);
 
 export class Lobby {
   private sessions = new Map<string, Session>();
@@ -134,12 +149,25 @@ export class Lobby {
         session.send({ type: "profile", profile: this.deps.accounts.profileOf(account) });
         break;
       }
-      // Placeholders until the settings and deck handlers land.
+      // Settings and deck changes affect only rooms that start later, so they are
+      // allowed while the sender is queued or seated.
       case "settingsRequest":
+        if (!this.accountWithPermission(session, "settings.edit")) break;
+        session.send(this.settingsMessage());
+        break;
       case "settingsSave":
+        this.handleSettingsSave(session, {
+          roundCount: msg.roundCount,
+          turnSeconds: msg.turnSeconds,
+          handSize: msg.handSize,
+        });
+        break;
       case "deckRequest":
+        if (!this.accountWithPermission(session, "deck.edit")) break;
+        session.send(this.deckMessage());
+        break;
       case "deckSave":
-        session.send({ type: "adminError", code: "FORBIDDEN", message: "Not available yet." });
+        this.handleDeckSave(session, msg.cards);
         break;
       default: {
         const never: never = msg;
@@ -281,6 +309,61 @@ export class Lobby {
     session.send({ type: "passwordChanged" });
   }
 
+  private handleSettingsSave(session: Session, settings: GameSettings): void {
+    const account = this.accountWithPermission(session, "settings.edit");
+    if (!account) return;
+    const problem = settingsProblem(settings);
+    if (problem !== null) {
+      this.sendAdminError(session, "INVALID_SETTINGS", problem);
+      return;
+    }
+    this.deps.gameConfig.saveSettings(settings, account.id);
+    this.deps.logger.info("game settings saved", { accountId: account.id, ...settings });
+    session.send(this.settingsMessage());
+  }
+
+  private handleDeckSave(session: Session, entries: DeckEntry[]): void {
+    const account = this.accountWithPermission(session, "deck.edit");
+    if (!account) return;
+    const problem = deckProblem(entries, CATALOG_CARD_IDS);
+    if (problem !== null) {
+      this.sendAdminError(session, "INVALID_DECK", problem);
+      return;
+    }
+    this.deps.gameConfig.saveDeck(entries, account.id);
+    this.deps.logger.info("default deck saved", { accountId: account.id });
+    session.send(this.deckMessage());
+  }
+
+  private settingsMessage(): ServerMessage {
+    return { type: "settings", ...this.deps.gameConfig.getSettings() };
+  }
+
+  /** Every catalog card, in catalog order, with its copies in the stored deck (0 when absent). */
+  private deckMessage(): ServerMessage {
+    const { entries, updatedAt, updatedBy } = this.deps.gameConfig.getDeck();
+    const copiesByCardId = new Map(entries.map((entry) => [entry.cardId, entry.copies]));
+    const cards = CARD_CATALOG.map((card) => ({ ...card, copies: copiesByCardId.get(card.id) ?? 0 }));
+    const total = cards.reduce((totalCopies, card) => totalCopies + card.copies, 0);
+    return { type: "deck", cards, total, updatedAt, updatedBy };
+  }
+
+  /**
+   * The session's account if its role grants `permission`, else null after answering
+   * FORBIDDEN. The role is read from the store now, not remembered from login, so a
+   * demotion takes effect on the next request. A guest has no permissions.
+   */
+  private accountWithPermission(session: Session, permission: Permission): AccountRecord | null {
+    const account = session.accountId === null ? null : this.deps.accounts.get(session.accountId);
+    if (account && permissionsFor(account.role).includes(permission)) return account;
+    this.sendAdminError(session, "FORBIDDEN", FORBIDDEN_MESSAGE);
+    return null;
+  }
+
+  private sendAdminError(session: Session, code: AdminErrorCode, message: string): void {
+    session.send({ type: "adminError", code, message });
+  }
+
   private attachAccount(session: Session, account: AccountRecord, loginToken: string): void {
     session.accountId = account.id;
     session.loginToken = loginToken;
@@ -324,11 +407,19 @@ export class Lobby {
 
   private startRoom(aId: PlayerId, bId: PlayerId): void {
     const roomId = this.deps.registry.nextRoomId();
+    // Read once here: the room keeps these for its whole life, including any deck it
+    // rebuilds mid-game, so a later save only changes rooms that start after it.
+    const { settings } = this.deps.gameConfig.getSettings();
+    const rules = makeRules({
+      tableLength: this.deps.config.tableLength,
+      handSize: settings.handSize,
+      deck: this.playableDeck(roomId),
+    });
     const room = new Room({
       roomId,
-      rules: this.deps.rules,
-      roundCount: this.deps.config.roundCount,
-      moveDeadlineMs: this.deps.config.moveDeadlineMs,
+      rules,
+      roundCount: settings.roundCount,
+      moveDeadlineMs: settings.turnSeconds * 1000,
       reconnectGraceMs: this.deps.config.reconnectGraceMs,
       clock: this.deps.clock,
       timers: this.deps.timers,
@@ -351,6 +442,20 @@ export class Lobby {
       const session = this.sessions.get(playerId);
       room.addPlayer(playerId, session?.name ?? "Player", session?.appearance ?? null);
     }
+  }
+
+  /**
+   * The stored deck, or the starting deck when the stored one has too few catalog
+   * cards to play with. A deck with no cards would fail the first time it runs out.
+   */
+  private playableDeck(roomId: string): readonly DeckEntry[] {
+    const { entries } = this.deps.gameConfig.getDeck();
+    const catalogCardTotal = entries
+      .filter((entry) => CATALOG_CARD_IDS.includes(entry.cardId))
+      .reduce((totalCopies, entry) => totalCopies + entry.copies, 0);
+    if (catalogCardTotal >= DECK_LIMITS.total.min) return entries;
+    this.deps.logger.warn("stored deck is too small; using the starting deck", { roomId, catalogCardTotal });
+    return STARTING_DECK;
   }
 
   /** Records the finished game for each logged-in seat, then sends those players their profile. */

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { Config } from "./config.js";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
-import { makeRules } from "./engine/rules/index.js";
+import { STARTING_DECK } from "./engine/rules/content.js";
 import { systemClock, systemTimers } from "./lobby/timers.js";
 import { Matchmaker } from "./lobby/matchmaking.js";
 import { RoomRegistry } from "./lobby/registry.js";
@@ -12,6 +12,7 @@ import { Lobby } from "./lobby/lobby.js";
 import { startTransport, type Transport } from "./transport/server.js";
 import { openAccountsDatabase } from "./accounts/database.js";
 import { AccountStore } from "./accounts/accountStore.js";
+import { GameConfigStore, startupSettings } from "./gameConfig/gameConfigStore.js";
 
 /** A four-digit room code — easy to read aloud and type. Collisions are retried by the
  *  matchmaker, and 10,000 codes is ample for the concurrent rooms this process holds. */
@@ -25,9 +26,11 @@ export async function createServer(config: Config = loadConfig()): Promise<Trans
   const accounts = new AccountStore(database, systemClock);
   const sweptTokenCount = accounts.sweepExpiredTokens();
   if (sweptTokenCount > 0) logger.info("expired login tokens swept", { count: sweptTokenCount });
+  // Seeds the settings and default deck on a fresh database; a saved value is kept.
+  const gameConfig = new GameConfigStore(database, systemClock);
+  gameConfig.ensureDefaults(startupSettings(config), STARTING_DECK);
   const lobby = new Lobby({
     config,
-    rules: makeRules({ tableLength: config.tableLength, handSize: config.handSize }),
     clock: systemClock,
     timers: systemTimers,
     registry: new RoomRegistry(),
@@ -36,6 +39,7 @@ export async function createServer(config: Config = loadConfig()): Promise<Trans
     genId: () => randomUUID(),
     genToken: () => randomUUID(),
     accounts,
+    gameConfig,
   });
   const transport = await startTransport({ lobby, config, logger });
   return {

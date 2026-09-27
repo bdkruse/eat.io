@@ -1,6 +1,7 @@
 import type { DeckEntry, GameSettings } from "@eat.io/protocol";
 import type { Clock } from "../lobby/timers.js";
 import type { AccountsDatabase } from "../accounts/database.js";
+import type { Config } from "../config.js";
 
 export interface SettingsRecord {
   settings: GameSettings;
@@ -12,6 +13,15 @@ export interface DeckRecord {
   entries: DeckEntry[];
   updatedAt: number | null;
   updatedBy: string | null;
+}
+
+/** The settings a fresh database is seeded with: the startup values from the environment. */
+export function startupSettings(config: Pick<Config, "roundCount" | "moveDeadlineMs" | "handSize">): GameSettings {
+  return {
+    roundCount: config.roundCount,
+    turnSeconds: Math.round(config.moveDeadlineMs / 1000),
+    handSize: config.handSize,
+  };
 }
 
 interface GameSettingsRow {

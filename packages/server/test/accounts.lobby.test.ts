@@ -9,7 +9,6 @@ import {
   type ServerMessage,
   type WelcomeMessage,
 } from "@eat.io/protocol";
-import { defaultRules } from "../src/engine/rules/index.js";
 import { loadConfig } from "../src/config.js";
 import { createLogger } from "../src/logger.js";
 import { manualTime } from "../src/lobby/timers.js";
@@ -18,6 +17,8 @@ import { RoomRegistry } from "../src/lobby/registry.js";
 import { Lobby, type Connection } from "../src/lobby/lobby.js";
 import { openAccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
+import { GameConfigStore, startupSettings } from "../src/gameConfig/gameConfigStore.js";
+import { STARTING_DECK } from "../src/engine/rules/content.js";
 
 const ROUND_COUNT = 2;
 const MOVE_DEADLINE_MS = 20000;
@@ -43,14 +44,17 @@ const BREEZY_LOOK: Appearance = {
 function makeLobby() {
   const time = manualTime();
   let playerSequence = 0, sessionTokenSequence = 0, codeSequence = 0;
-  const accounts = new AccountStore(openAccountsDatabase(":memory:"), time.clock);
+  const config = loadConfig({
+    RNG_SEED: "5",
+    ROUND_COUNT: String(ROUND_COUNT),
+    MOVE_DEADLINE_MS: String(MOVE_DEADLINE_MS),
+  });
+  const database = openAccountsDatabase(":memory:");
+  const accounts = new AccountStore(database, time.clock);
+  const gameConfig = new GameConfigStore(database, time.clock);
+  gameConfig.ensureDefaults(startupSettings(config), STARTING_DECK);
   const lobby = new Lobby({
-    config: loadConfig({
-      RNG_SEED: "5",
-      ROUND_COUNT: String(ROUND_COUNT),
-      MOVE_DEADLINE_MS: String(MOVE_DEADLINE_MS),
-    }),
-    rules: defaultRules,
+    config,
     clock: time.clock,
     timers: time.timers,
     registry: new RoomRegistry(),
@@ -59,6 +63,7 @@ function makeLobby() {
     genId: () => `player-${++playerSequence}`,
     genToken: () => `session-token-${++sessionTokenSequence}`,
     accounts,
+    gameConfig,
   });
   return { lobby, time, accounts };
 }

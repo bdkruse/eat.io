@@ -6,7 +6,6 @@ import {
   type ServerMessage,
   type WelcomeMessage,
 } from "@eat.io/protocol";
-import { defaultRules } from "../src/engine/rules/index.js";
 import { loadConfig } from "../src/config.js";
 import { createLogger } from "../src/logger.js";
 import { manualTime } from "../src/lobby/timers.js";
@@ -15,13 +14,18 @@ import { RoomRegistry } from "../src/lobby/registry.js";
 import { Lobby, type Connection } from "../src/lobby/lobby.js";
 import { openAccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
+import { GameConfigStore, startupSettings } from "../src/gameConfig/gameConfigStore.js";
+import { STARTING_DECK } from "../src/engine/rules/content.js";
 
 function makeLobby() {
   const time = manualTime();
   let idSeq = 0, tokSeq = 0, codeSeq = 0;
+  const config = loadConfig({ RNG_SEED: "5" });
+  const database = openAccountsDatabase(":memory:");
+  const gameConfig = new GameConfigStore(database, time.clock);
+  gameConfig.ensureDefaults(startupSettings(config), STARTING_DECK);
   const lobby = new Lobby({
-    config: loadConfig({ RNG_SEED: "5" }),
-    rules: defaultRules,
+    config,
     clock: time.clock,
     timers: time.timers,
     registry: new RoomRegistry(),
@@ -29,7 +33,8 @@ function makeLobby() {
     logger: createLogger("error"),
     genId: () => `player-${++idSeq}`,
     genToken: () => `tok-${++tokSeq}`,
-    accounts: new AccountStore(openAccountsDatabase(":memory:"), time.clock),
+    accounts: new AccountStore(database, time.clock),
+    gameConfig,
   });
   return { lobby, time };
 }
