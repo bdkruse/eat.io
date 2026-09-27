@@ -20,7 +20,9 @@ Open the URL in two browser windows to play both seats. In development the menu 
 Server field that defaults to `ws://localhost:8000`. If port 8000 is busy, start the
 server with `PORT=8765 npm start` and type `ws://localhost:8765` in the field.
 
-`ROUND_COUNT=3 npm start` makes a short game.
+For a short game, lower the round count in the Admin panel. `ROUND_COUNT` only seeds a
+fresh database, so `DATABASE_PATH=:memory: ROUND_COUNT=3 npm start` also makes a short
+game, with a throwaway database and no accounts.
 
 ## Deploy it
 
@@ -66,7 +68,7 @@ src/
   connection/             the socket and its reconnect state machine
   state/                  the game reducer, and LocalState for appearance and selection
   food/                   deterministic food placement
-  hooks/                  eaten-tray and score-pop motion, retained panel data
+  hooks/                  eaten-tray, boosted-tray, and score-pop motion, retained panel data
   appearance/             kid appearance options and seeded generation
   scene/
     Stage.tsx             the canvas; picks the camera shot from the screen
@@ -75,13 +77,24 @@ src/
     characters/           the kid model and the pose vocabulary
     cafeteria/            room, serving line, decor, tables, walking crowd
     game/                 the game table, trays, and food
-  ui/                     menu, customize, queue, scoreboard, hand, result
+  ui/                     menu, customize, queue, scoreboard, hand, result, admin, creator, shop
 ```
 
 ## Controls
 
 Click a card, then click trays on your side of the table. Keys `1` to `5` pick a card,
 `Enter` ends the turn, and `Esc` clears the pick.
+
+A card that takes no trays says "no trays" and is ready as soon as you pick it. "Add One
+Food To Every Tray" shows `+1 all`. "Extra Servings" shows `+2 ×2`.
+
+## Extra servings on the table
+
+Upcoming extra servings show in a small marker at the foot of each player's row of trays,
+for example "+2, +2". The first number rides on the next tray to arrive. The marker
+shrinks as the trays arrive. It hides once the list is empty. A tray that arrives with a
+bonus glows gold for a moment as it slides on. The server adds the bonus. The client only
+shows it.
 
 ## Detail levels
 
@@ -108,15 +121,66 @@ it and play as a guest. Logging in or registering stores a login token in the br
 token resumes the account automatically, with no password prompt. Logging out, or an
 expired or unknown token, clears it and the session continues as a guest.
 
+The top bar shows a logged-in player's Lunch Money balance, with a coin icon, next to the
+profile button. The profile panel shows it too. At game over, a logged-in player sees
+"+N Lunch Money", where N is their score. A guest sees no balance and earns nothing.
+
 Account rules (username and password format, roles, stats) are documented in
 [`packages/server/README.md`](../server/README.md). The wire messages are in
 [`PROTOCOL.md`](../server/PROTOCOL.md).
 
 ## Customization
 
-Skin tone, hair style, hair color, shirt, pants, and one extra (glasses, cap, headband, or
-beanie). The look is local only. It does not persist, and the opponent does not see it.
-Your opponent's kid is generated from their name, so the same name always looks the same.
+Skin tone, hair style, hair color, eyes, eye color, mouth, shirt, pants, and one extra.
+The free extras are glasses, a cap, a headband, and a beanie. The face options are:
+
+| Option | Free | In the shop |
+|---|---|---|
+| Eyes | Round, Almond, Sleepy, Sparkly | Star Eyes, Heart Eyes |
+| Eye color | Dark Brown, Brown, Hazel, Green, Blue, Gray | Violet, Glowing Gold |
+| Mouth | Smile, Big Grin, Calm, Smirk | Tongue Out, Vampire Fangs |
+
+The mouth shape sets the resting mouth. The kid still opens its mouth to talk and chomp.
+
+Shop values you own show in the rows with the free ones. A shop value you do not own
+shows a lock and its price. Picking it opens the shop at that item. A guest sees only the
+free values.
+
+Edits stay local until you press Done. Done saves the look to a logged-in player's
+account. For a guest, Done shares the look with the opponent until the page reloads. An
+opponent who never set a look gets one generated from their name, so the same name
+always looks the same.
+
+## Shop
+
+A logged-in player sees a Shop button in the top bar. The shop lists every item for
+sale, grouped by kind, with its price. Items you own say "Owned". Picking an item tries it
+on your kid, and nothing is saved. Picking it again takes it off. Buy is disabled for an
+item you own, and for one you cannot afford, with a note of how much more you need. A buy
+spends Lunch Money, then the kid wears the item and the look is saved. Closing a shop
+opened from Customize returns you to Customize.
+
+## Admin and Creator panels
+
+The top bar shows an Admin button to a profile with `settings.edit`, and a Creator button
+to a profile with `deck.edit`. The Admin, Creator, and Shop buttons and the balance are
+hidden during a game, like the profile button. With the Admin or Creator panel open, the
+camera uses the menu shot.
+
+- **Admin:** the round count, the turn clock, and the hand size, each with its range.
+- **Creator, Deck tab:** one row per card, with its glyph, name, and tray count, and a
+  quantity with − and + buttons and a number field. A live total shows the 10 to 100
+  limit.
+- **Creator, Shop tab:** one row per shop item, with a price (1 to 1000) and an Available
+  switch. Only a profile with `shop.edit` sees this tab.
+
+Save is disabled while a value is outside its limit, and the problem shows under the
+fields. Each panel shows "Last changed by <name>, <date and time>". A save changes the
+next game, not one in progress. The limits and the edit permissions are in
+[`packages/server/README.md`](../server/README.md).
+
+Profile, Customize, Shop, Admin, and Creator never show at the same time. Opening one
+closes the others, and entering a room closes them all.
 
 ## Known limitations
 
