@@ -10,6 +10,8 @@ const profile: Profile = {
   pointsScored: 0,
   gamesPlayed: 0,
   gamesWon: 0,
+  lunchMoney: 0,
+  ownedItems: [],
   createdAt: 1_700_000_000_000,
   lastLoginAt: null,
 };

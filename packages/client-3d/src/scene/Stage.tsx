@@ -29,10 +29,11 @@ export function Stage() {
   const local = useLocalState();
   const screen = selectScreen(state);
   const portrait = usePortrait();
-  // The camera shows your kid for the customize screen AND for the profile panel — either
-  // reason gets the same shot (§11). The admin and creator panels show neither the kid nor
-  // the usual screen behind them — they force the wide menu shot instead (§9).
-  const showingKid = local.openPanel === "customize" || local.openPanel === "profile";
+  // The camera shows your kid for the customize screen, the profile panel, and the shop
+  // (where a picked item is tried on) — each gets the same shot (§11, §13.7). The admin and
+  // creator panels show neither the kid nor the usual screen behind them — they force the
+  // wide menu shot instead (§9).
+  const showingKid = local.openPanel === "customize" || local.openPanel === "profile" || local.openPanel === "shop";
   const forceMenuShot = local.openPanel === "admin" || local.openPanel === "creator";
   const shot = selectShot(screen, showingKid, portrait, forceMenuShot);
   const frozen = selectBoardFrozen(state);
@@ -55,7 +56,7 @@ export function Stage() {
         <GameTable
           room={inGame ? state.room : null}
           result={state.result}
-          yourAppearance={local.appearance}
+          yourAppearance={local.shownAppearance}
           showingKid={showingKid && !inGame}
           awaitingYou={awaitingYou}
           selection={local.selection}

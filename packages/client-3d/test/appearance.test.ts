@@ -22,6 +22,8 @@ import {
   randomAppearance,
   SHIRT_COLORS,
   SKIN_TONES,
+  wearingShopItem,
+  withoutLockedItems,
 } from "../src/appearance/appearance.js";
 
 test("the same seed always makes the same kid", () => {
@@ -76,4 +78,33 @@ test("generated kids never wear a shop item, and always have a face", () => {
 test("the default look is free and complete", () => {
   expect(AppearanceSchema.parse(DEFAULT_APPEARANCE)).toEqual(DEFAULT_APPEARANCE);
   expect(lockedItemsIn(DEFAULT_APPEARANCE, [])).toEqual([]);
+});
+
+test("wearing a shop item sets just the field it unlocks", () => {
+  expect(wearingShopItem(DEFAULT_APPEARANCE, "extra.crown")).toEqual({ ...DEFAULT_APPEARANCE, accessory: "crown" });
+  expect(wearingShopItem(DEFAULT_APPEARANCE, "eyeColor.violet")).toEqual({ ...DEFAULT_APPEARANCE, eyeColor: "#8a4fd1" });
+});
+
+test("wearing an unknown item id leaves the look as it is", () => {
+  expect(wearingShopItem(DEFAULT_APPEARANCE, "extra.nothing")).toBe(DEFAULT_APPEARANCE);
+});
+
+test("withoutLockedItems swaps each unowned shop value for its field's first free value and keeps the rest", () => {
+  const look = { ...DEFAULT_APPEARANCE, accessory: "crown", hairColor: "#c9ccd1", mouthShape: "fangs", hairStyle: "bob" } as const;
+  expect(withoutLockedItems(look, ["hair.silver"])).toEqual({
+    ...look,
+    accessory: FREE_ACCESSORIES[0],
+    mouthShape: FREE_MOUTH_SHAPES[0],
+  });
+  // A guest owns nothing, so every shop value comes off.
+  expect(withoutLockedItems(look, [])).toEqual({
+    ...look,
+    accessory: FREE_ACCESSORIES[0],
+    hairColor: FREE_HAIR_COLORS[0],
+    mouthShape: FREE_MOUTH_SHAPES[0],
+  });
+});
+
+test("withoutLockedItems returns the same look when nothing is locked", () => {
+  expect(withoutLockedItems(DEFAULT_APPEARANCE, [])).toBe(DEFAULT_APPEARANCE);
 });

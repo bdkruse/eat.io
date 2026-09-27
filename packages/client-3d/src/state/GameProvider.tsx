@@ -8,7 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { ClientMessage, DeckEntry, GameSettings, ServerMessage } from "@eat.io/protocol";
+import type { ClientMessage, DeckEntry, GameSettings, ServerMessage, ShopConfigEntry } from "@eat.io/protocol";
 import type { Appearance } from "../appearance/appearance.js";
 import { resumeServerUrl } from "../config.js";
 import { wakeServer } from "../connection/wakeServer.js";
@@ -48,6 +48,12 @@ export interface GameApi {
   saveSettings(settings: GameSettings): void;
   requestDeck(): void;
   saveDeck(entries: DeckEntry[]): void;
+  /** The shop, with the Creator's prices and what this player owns (§13.4). */
+  requestShop(): void;
+  /** One buy. The server answers `shop` and the updated `profile`, or `accountError`. */
+  buyItem(itemId: string): void;
+  requestShopConfig(): void;
+  saveShopConfig(entries: ShopConfigEntry[]): void;
 }
 
 const GameContext = createContext<GameApi | null>(null);
@@ -217,6 +223,22 @@ export function GameProvider({ children }: { children: ReactNode }) {
       saveDeck: (entries) => {
         dispatch({ kind: "deckSaveStarted" });
         send({ type: "deckSave", cards: entries });
+      },
+      requestShop: () => {
+        dispatch({ kind: "shopRequested" });
+        send({ type: "shopRequest" });
+      },
+      buyItem: (itemId) => {
+        dispatch({ kind: "shopBuyStarted", itemId });
+        send({ type: "shopBuy", itemId });
+      },
+      requestShopConfig: () => {
+        dispatch({ kind: "shopConfigRequested" });
+        send({ type: "shopConfigRequest" });
+      },
+      saveShopConfig: (entries) => {
+        dispatch({ kind: "shopConfigSaveStarted" });
+        send({ type: "shopConfigSave", items: entries });
       },
     }),
     [state, connect, connectKeepingPending, disconnect, send],

@@ -8,6 +8,7 @@ import type {
   RejectionCode,
   Result,
   RoomStateMessage,
+  ShopItemView,
 } from "@eat.io/protocol";
 import { initialConnectionState, type ConnectionState } from "../connection/connectionState.js";
 
@@ -50,9 +51,35 @@ export interface AdminDeckState {
   updatedBy: string | null;
 }
 
+/** The shop as the server last sent it: the available items with the Creator's prices,
+ *  whether this player owns each, and the balance (§13.4). */
+export interface ShopState {
+  items: ShopItemView[];
+  balance: number;
+}
+
+/** The creator's shop tool: every catalog item, turned-off ones included (§13.4). */
+export interface AdminShopConfigState {
+  items: ShopItemView[];
+  updatedAt: number | null;
+  updatedBy: string | null;
+}
+
+/** A `shop` message the client is waiting for, in the order it asked: the server answers
+ *  in that order, so the head of the queue says what the next `shop` message is for. */
+export type PendingShopReply = { kind: "request" } | { kind: "buy"; itemId: string };
+
+/** A buy the server confirmed. A new object (and seq) for each, so the look can be
+ *  equipped exactly once per purchase. */
+export interface ShopPurchase {
+  itemId: string;
+  seq: number;
+}
+
 /** What an admin notice or error is about, so each panel shows only its own: "settings"
- *  belongs to the admin panel, "deck" to the creator panel's deck tab (fix round 1). */
-export type AdminSubject = "settings" | "deck";
+ *  belongs to the admin panel, "deck" to the creator panel's deck tab (fix round 1), and
+ *  "shopConfig" to its shop tab. */
+export type AdminSubject = "settings" | "deck" | "shopConfig";
 
 export interface AdminErrorState {
   subject: AdminSubject;
@@ -116,6 +143,24 @@ export interface AppState {
   savingSettings: boolean;
   /** Same reasoning as `savingSettings`, for `saveDeck` and the `deck` message. */
   savingDeck: boolean;
+  /** The creator's shop tool, with the same reset-on-request rule as `adminSettings`. */
+  adminShopConfig: AdminShopConfigState | null;
+  /** Same reasoning as `savingSettings`, for `saveShopConfig` and the `shopConfig` message. */
+  savingShopConfig: boolean;
+  /** The last `shop` message, or null before the first. */
+  shop: ShopState | null;
+  /** Every `shopRequest` and `shopBuy` not yet answered, oldest first. Without it, the
+   *  answer to a request still in flight when Buy is pressed would pass for the purchase.
+   *  A buy leaves it on its `shop` answer (bought) or its `accountError` (refused); the
+   *  whole queue goes when the connection drops. */
+  pendingShopReplies: PendingShopReply[];
+  /** The latest confirmed buy. */
+  shopPurchase: ShopPurchase | null;
+  /** The account's Lunch Money when the current room started, or null for a guest. */
+  lunchMoneyAtGameStart: number | null;
+  /** How much Lunch Money the finished game earned: the first profile after `gameOver`,
+   *  less `lunchMoneyAtGameStart` (§13.6). Null until that profile arrives, and for a guest. */
+  lunchMoneyEarned: number | null;
 }
 
 export const initialAppState: AppState = {
@@ -140,6 +185,13 @@ export const initialAppState: AppState = {
   lastAdminSubject: null,
   savingSettings: false,
   savingDeck: false,
+  adminShopConfig: null,
+  savingShopConfig: false,
+  shop: null,
+  pendingShopReplies: [],
+  shopPurchase: null,
+  lunchMoneyAtGameStart: null,
+  lunchMoneyEarned: null,
 };
 
 export type Screen = "connect" | "queue" | "game" | "gameOver";
@@ -174,6 +226,14 @@ export function selectAdminMessages(
     notice: state.adminNotice?.subject === subject ? state.adminNotice : null,
     error: state.adminError?.subject === subject ? state.adminError : null,
   };
+}
+
+/** The item a buy is waiting on, or null: Buy is disabled while it is set. */
+export function selectBuyingItemId(state: AppState): string | null {
+  for (const pendingReply of state.pendingShopReplies) {
+    if (pendingReply.kind === "buy") return pendingReply.itemId;
+  }
+  return null;
 }
 
 /** Explicit from the server's submitted flags — never inferred from a turn index (§2.8.10). */

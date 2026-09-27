@@ -13,12 +13,15 @@ import {
   MOUTH_SHAPES,
   PANTS_COLORS,
   SHIRT_COLORS,
+  SHOP_ITEMS,
   SKIN_TONES,
+  lockedItemsIn,
   type Accessory,
   type Appearance,
   type EyeShape,
   type HairStyle,
   type MouthShape,
+  type ShopItemKind,
 } from "@eat.io/protocol";
 import { createRandom, hashString } from "../lib/seededRandom.js";
 
@@ -70,4 +73,41 @@ export function randomAppearance(seed: number): Appearance {
  */
 export function appearanceFromName(name: string): Appearance {
   return randomAppearance(hashString(`opponent:${name}`));
+}
+
+/** The free value a field falls back to when its shop value is not owned — the same
+ *  fallback the server applies to a session look on logout. */
+const FREE_FALLBACK_BY_KIND: Record<ShopItemKind, string> = {
+  extra: FREE_ACCESSORIES[0],
+  shirtColor: FREE_SHIRT_COLORS[0],
+  hairColor: FREE_HAIR_COLORS[0],
+  eyeShape: FREE_EYE_SHAPES[0],
+  eyeColor: FREE_EYE_COLORS[0],
+  mouthShape: FREE_MOUTH_SHAPES[0],
+};
+
+/** The look with this shop item worn: only the one field it unlocks changes. An unknown
+ *  item id leaves the look (the same object) as it is. */
+export function wearingShopItem(appearance: Appearance, itemId: string): Appearance {
+  const item = SHOP_ITEMS.find((shopItem) => shopItem.id === itemId);
+  if (!item) return appearance;
+  // The catalog pairs each field with values from that field's own option list.
+  return { ...appearance, [item.unlocks.field]: item.unlocks.value } as Appearance;
+}
+
+/**
+ * The look with every shop value the player does not own swapped for that field's first
+ * free value, keeping the rest. A guest owns nothing. Unchanged (the same object) when
+ * nothing is locked. Mirrors the server's own rule for a session look on logout, which it
+ * applies without telling the client (§13.4).
+ */
+export function withoutLockedItems(appearance: Appearance, ownedItemIds: readonly string[]): Appearance {
+  const lockedItemIds = lockedItemsIn(appearance, ownedItemIds);
+  if (lockedItemIds.length === 0) return appearance;
+  let allowedLook: Appearance = appearance;
+  for (const item of SHOP_ITEMS) {
+    if (!lockedItemIds.includes(item.id)) continue;
+    allowedLook = { ...allowedLook, [item.unlocks.field]: FREE_FALLBACK_BY_KIND[item.kind] } as Appearance;
+  }
+  return allowedLook;
 }

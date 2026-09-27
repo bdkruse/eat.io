@@ -1,5 +1,6 @@
 import { useGame } from "../state/GameProvider.js";
 import { useRetained } from "../hooks/useRetained.js";
+import { CoinIcon } from "./icons.js";
 
 export function GameOverPanel() {
   const { state, playAgain, leaveToMenu } = useGame();
@@ -13,6 +14,8 @@ export function GameOverPanel() {
     { seat: room.opponent.seat, name: room.opponent.name, score: result.scores[room.opponent.seat] ?? 0, side: "opponent" },
   ];
   const best = Math.max(...rows.map((row) => row.score));
+  // Only a logged-in player earns Lunch Money; it shows once the updated profile arrives.
+  const lunchMoneyEarned = state.account ? state.lunchMoneyEarned : null;
 
   return (
     <section className="panel panel--over">
@@ -26,6 +29,11 @@ export function GameOverPanel() {
           </div>
         ))}
       </div>
+      {lunchMoneyEarned !== null && (
+        <p className="lunch-money-earned">
+          <CoinIcon size={18} />+{lunchMoneyEarned} Lunch Money
+        </p>
+      )}
       <div className="panel__actions panel__actions--row">
         <button className="button button--primary" onClick={playAgain}>
           Play again

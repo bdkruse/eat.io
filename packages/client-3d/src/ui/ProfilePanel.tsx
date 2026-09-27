@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { isValidPassword, ROLE_LABELS } from "@eat.io/protocol";
 import { useGame } from "../state/GameProvider.js";
 import { useLocalState } from "../state/LocalState.js";
+import { CoinIcon } from "./icons.js";
 
 /** Docked left, fades like the other panels. Shows the account's stats, lets you change
  *  your password, and log out (§11). */
@@ -53,6 +54,13 @@ export function ProfilePanel() {
         <div className="profile__stat">
           <dt>Last login</dt>
           <dd>{account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleString() : "never"}</dd>
+        </div>
+        <div className="profile__stat">
+          <dt>Lunch Money</dt>
+          <dd className="profile__lunch-money">
+            <CoinIcon size={16} />
+            {account.lunchMoney}
+          </dd>
         </div>
         <div className="profile__stat">
           <dt>Games played</dt>

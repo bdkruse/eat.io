@@ -217,6 +217,69 @@
 .deck-editor__total { font-family: var(--font-structural); font-weight: 700; font-size: 14px; color: var(--ink-2); margin: 0 0 12px; }
 .deck-editor__total--problem { color: var(--you-deep); }
 
+/* ---------- Lunch Money and the shop ---------- */
+.coin-icon, .lock-icon { flex: none; display: inline-block; vertical-align: -2px; }
+.profile-button--static { cursor: default; gap: 5px; color: var(--ink); }
+.profile__lunch-money { display: flex; align-items: center; gap: 5px; }
+.lunch-money-earned {
+  display: flex; align-items: center; gap: 6px; margin: 14px 0 0;
+  font-family: var(--font-structural); font-weight: 800; font-size: 17px; color: var(--ink);
+}
+
+/* Customize: a locked option shows a lock and its price. */
+.swatches { align-items: flex-start; }
+.swatch-option { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.swatch--locked { display: flex; align-items: center; justify-content: center; color: #fff; }
+.swatch--locked .lock-icon { filter: drop-shadow(0 1px 1px rgba(35, 42, 36, 0.6)); }
+.swatch-option__price {
+  display: flex; align-items: center; gap: 2px;
+  font-family: var(--font-structural); font-weight: 700; font-size: 11px; color: var(--ink-2);
+}
+.chip--locked { display: inline-flex; align-items: center; gap: 5px; background: var(--well); color: var(--ink-2); }
+.chip__price { display: inline-flex; align-items: center; gap: 2px; font-size: 12px; }
+
+/* The shop panel. */
+.shop__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.shop__balance {
+  display: flex; align-items: center; gap: 6px; margin-bottom: 8px;
+  font-family: var(--font-structural); font-weight: 800; font-size: 18px; color: var(--ink);
+}
+.shop__selection {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 62px; padding: 10px 12px; margin: 4px 0 10px;
+  background: #fff; border-radius: 12px; box-shadow: inset 0 0 0 2px var(--line);
+}
+.shop__selection-text { display: flex; flex-direction: column; gap: 3px; font-family: var(--font-structural); font-size: 15px; }
+.shop__selection-hint { margin: 0; color: var(--ink-2); font-size: 14px; }
+.shop__price {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--font-structural); font-weight: 700; font-size: 13px; color: var(--ink-2);
+}
+.shop-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; }
+.shop-item {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 8px 10px; border: none; border-radius: 12px; cursor: pointer; text-align: left;
+  background: #fff; color: var(--ink); box-shadow: inset 0 0 0 2px var(--line), 0 3px 0 var(--line);
+  transition: transform 120ms;
+}
+.shop-item:hover { transform: translateY(-2px); }
+.shop-item--selected { box-shadow: inset 0 0 0 3px var(--ink), 0 3px 0 rgba(35, 42, 36, 0.35); }
+.shop-item__swatch { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
+.shop-item__name { font-family: var(--font-structural); font-weight: 700; font-size: 13px; line-height: 1.2; }
+.shop-item__owned { font-family: var(--font-structural); font-weight: 700; font-size: 12px; color: var(--add); }
+
+/* The creator's shop tool. */
+.shop-config { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 14px; }
+.shop-config-row {
+  display: grid; grid-template-columns: 1fr auto auto; align-items: center; column-gap: 10px;
+  padding: 8px 12px; background: #fff; border-radius: 12px; box-shadow: inset 0 0 0 2px var(--line);
+}
+.shop-config-row__name { font-family: var(--font-structural); font-weight: 700; font-size: 14px; }
+.shop-config-row__price { width: 64px; }
+.shop-config-row__available {
+  display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--ink-2); cursor: pointer;
+}
+
 @media (max-width: 520px) {
   .detail-toggle__label { display: none; }
   .detail-toggle { padding-left: 3px; }

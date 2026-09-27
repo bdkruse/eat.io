@@ -17,13 +17,16 @@ import {
   toggleTray,
   type Selection,
 } from "./selection.js";
-import { DEFAULT_APPEARANCE, type Appearance } from "../appearance/appearance.js";
+import {
+  DEFAULT_APPEARANCE,
+  wearingShopItem,
+  withoutLockedItems,
+  type Appearance,
+} from "../appearance/appearance.js";
 import type { DetailLevel } from "../scene/detail.js";
 
-/** Which single panel is docked left, if any. A later task adds "shop" here alongside its
- *  own Shop tab inside the creator panel (§9/§13) — this union is the one place that
- *  extension touches. */
-export type OpenPanel = "customize" | "profile" | "admin" | "creator" | null;
+/** Which single panel is docked left, if any. */
+export type OpenPanel = "customize" | "profile" | "admin" | "creator" | "shop" | null;
 
 /**
  * State that belongs to this browser tab only and never reaches the server on its own —
@@ -32,14 +35,25 @@ export type OpenPanel = "customize" | "profile" | "admin" | "creator" | null;
  * in, and pressing Done), but the decision to do so lives here.
  */
 export interface LocalStateApi {
+  /** Your look as it is saved (or shared, for a guest). */
   appearance: Appearance;
   setAppearance: (next: Appearance) => void;
+  /** What your kid shows right now: `appearance`, with the shop item being previewed worn
+   *  on top while the shop is open. The preview is never sent; leaving the shop drops it. */
+  shownAppearance: Appearance;
   /** Docked left, mutually exclusive — opening one closes whichever else was open. */
   openPanel: OpenPanel;
   setCustomizing: (open: boolean) => void;
   setProfileOpen: (open: boolean) => void;
   setAdminOpen: (open: boolean) => void;
   setCreatorOpen: (open: boolean) => void;
+  /** Opens the shop, optionally with an item already picked (Customize's locked options).
+   *  Opened from Customize, closing the shop goes back to Customize. */
+  openShop: (selectedItemId?: string) => void;
+  closeShop: () => void;
+  /** The shop item being previewed on your kid, or null. */
+  shopSelectedItemId: string | null;
+  selectShopItem: (itemId: string | null) => void;
   /** How much of the room to draw; low trades crowd and shadows for frame rate. */
   detail: DetailLevel;
   setDetail: (next: DetailLevel) => void;
@@ -59,12 +73,16 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const { state, submitTurn, noteLocalRejection, setAppearance: sendAppearanceToServer } = useGame();
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
+  const [shopSelectedItemId, setShopSelectedItemId] = useState<string | null>(null);
+  // Whether the open shop came from Customize, so closing it returns there rather than
+  // leaving an unsaved Customize edit behind.
+  const shopReturnsToCustomizeRef = useRef(false);
   const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
 
   const connected = state.connection.phase === "connected";
 
-  // Opening any one of the four closes whichever else was open — they never show at the
+  // Opening any one panel closes whichever else was open — they never show at the
   // same time (§9 ruling).
   const openOnly = useCallback((panel: Exclude<OpenPanel, null>) => setOpenPanel(panel), []);
   // Closing checks it is actually the panel showing, so a stray "close" call from a panel
@@ -99,6 +117,39 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     (open: boolean) => (open ? openOnly("creator") : closeIfOpen("creator")),
     [openOnly, closeIfOpen],
   );
+
+  const openShop = useCallback(
+    (selectedItemId?: string) => {
+      shopReturnsToCustomizeRef.current = openPanel === "customize";
+      setShopSelectedItemId(selectedItemId ?? null);
+      openOnly("shop");
+    },
+    [openPanel, openOnly],
+  );
+
+  const closeShop = useCallback(() => {
+    setShopSelectedItemId(null);
+    if (shopReturnsToCustomizeRef.current) {
+      shopReturnsToCustomizeRef.current = false;
+      setOpenPanel((current) => (current === "shop" ? "customize" : current));
+      return;
+    }
+    closeIfOpen("shop");
+  }, [closeIfOpen]);
+
+  // A buy the server confirmed: wear the item and save the look (the preview alone never
+  // reaches the server). Runs once per purchase, even if the shop has closed since.
+  const previousPurchaseRef = useRef(state.shopPurchase);
+  useEffect(() => {
+    const purchase = state.shopPurchase;
+    if (purchase === null || purchase === previousPurchaseRef.current) return;
+    previousPurchaseRef.current = purchase;
+    const equippedLook = wearingShopItem(appearance, purchase.itemId);
+    setAppearance(equippedLook);
+    sendAppearanceToServer(equippedLook);
+    // `appearance` is read at the moment of the purchase, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.shopPurchase]);
 
   // A match found mid-edit takes you to the table; no panel may reappear once seated. This
   // is not "Done", so it sends nothing of its own.
@@ -139,15 +190,17 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
 
   // Logging in replaces the local look with the account's saved one. A brand-new account
   // has none yet, so it is seeded with whatever look was already in use instead (§11).
-  // Logging out closes the profile, admin, and creator panels: none has anything left to
-  // show a guest with no permissions, and while open one would hide the pre-connect menu
+  // Logging out closes the profile, admin, creator, and shop panels: none has anything left
+  // to show a guest with no permissions, and while open one would hide the pre-connect menu
   // the logout returns to (final review, item 3). Customize stays open — a guest can still
-  // use it.
+  // use it. A guest cannot wear shop items, so they come off the local look the same way
+  // the server takes them off the session's look, which it does without saying so (§13.4).
   const previousAccountRef = useRef<AppState["account"]>(null);
   useEffect(() => {
     const previousAccount = previousAccountRef.current;
     if (previousAccount !== null && state.account === null) {
       setOpenPanel((current) => (current === "customize" ? current : null));
+      setAppearance((current) => withoutLockedItems(current, []));
     }
     if (previousAccount === null && state.account !== null) {
       if (state.account.appearance) {
@@ -160,6 +213,13 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     // `appearance` is read at the moment of transition, not watched.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.account]);
+
+  // Memoized so the kid's look keeps its identity between renders while previewing.
+  const shownAppearance = useMemo(
+    () =>
+      openPanel === "shop" && shopSelectedItemId !== null ? wearingShopItem(appearance, shopSelectedItemId) : appearance,
+    [openPanel, shopSelectedItemId, appearance],
+  );
 
   const targetCount = selectYourCard(state, selection.cardInstanceId)?.targets ?? 0;
   const ready = isSubmittable(selection, targetCount);
@@ -190,11 +250,16 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     () => ({
       appearance,
       setAppearance,
+      shownAppearance,
       openPanel,
       setCustomizing,
       setProfileOpen,
       setAdminOpen,
       setCreatorOpen,
+      openShop,
+      closeShop,
+      shopSelectedItemId,
+      selectShopItem: setShopSelectedItemId,
       detail,
       setDetail,
       selection,
@@ -207,11 +272,15 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     }),
     [
       appearance,
+      shownAppearance,
       openPanel,
       setCustomizing,
       setProfileOpen,
       setAdminOpen,
       setCreatorOpen,
+      openShop,
+      closeShop,
+      shopSelectedItemId,
       detail,
       selection,
       targetCount,

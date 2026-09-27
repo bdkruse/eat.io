@@ -1,6 +1,6 @@
-import type { AdminErrorCode, ServerMessage } from "@eat.io/protocol";
+import type { AccountErrorCode, AdminErrorCode, ServerMessage } from "@eat.io/protocol";
 import type { ConnectionState } from "../connection/connectionState.js";
-import { initialAppState, type AdminSubject, type AppState } from "./gameState.js";
+import { initialAppState, type AdminSubject, type AppState, type PendingShopReply } from "./gameState.js";
 
 export type Action =
   | { kind: "server"; msg: ServerMessage }
@@ -16,7 +16,14 @@ export type Action =
   | { kind: "settingsRequested" }
   | { kind: "deckRequested" }
   | { kind: "settingsSaveStarted" }
-  | { kind: "deckSaveStarted" };
+  | { kind: "deckSaveStarted" }
+  | { kind: "shopRequested" }
+  | { kind: "shopBuyStarted"; itemId: string }
+  | { kind: "shopConfigRequested" }
+  | { kind: "shopConfigSaveStarted" };
+
+/** The `accountError` codes that refuse a `shopBuy` (§13.6). */
+const BUY_REFUSAL_CODES: readonly AccountErrorCode[] = ["NOT_AVAILABLE", "ALREADY_OWNED", "NOT_ENOUGH"];
 
 /** Opening an admin panel or starting a save starts with nothing said yet (fix round 1). */
 const CLEARED_ADMIN_MESSAGES = { adminNotice: null, adminError: null } as const;
@@ -28,6 +35,8 @@ const CLEARED_FOR_NEW_ROOM = {
   result: null,
   rejection: null,
   opponentDropped: null,
+  lunchMoneyAtGameStart: null,
+  lunchMoneyEarned: null,
 } as const;
 
 export function gameReducer(state: AppState, action: Action): AppState {
@@ -35,7 +44,13 @@ export function gameReducer(state: AppState, action: Action): AppState {
     case "server":
       return reduceServerMessage(state, action.msg);
     case "connection":
-      return { ...state, connection: action.state };
+      // Answers lost with the connection never come, and a lost buy must not leave Buy
+      // disabled.
+      return {
+        ...state,
+        connection: action.state,
+        pendingShopReplies: action.state.phase === "connected" ? state.pendingShopReplies : [],
+      };
     case "nameChanged":
       return { ...state, name: action.name };
     case "localRejection":
@@ -72,6 +87,19 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...state, ...CLEARED_ADMIN_MESSAGES, savingSettings: true, lastAdminSubject: "settings" };
     case "deckSaveStarted":
       return { ...state, ...CLEARED_ADMIN_MESSAGES, savingDeck: true, lastAdminSubject: "deck" };
+    case "shopRequested":
+      // Opening the shop: an account error left from another panel is not about it.
+      return { ...state, accountError: null, pendingShopReplies: withPendingShopReply(state, { kind: "request" }) };
+    case "shopBuyStarted":
+      return {
+        ...state,
+        accountError: null,
+        pendingShopReplies: withPendingShopReply(state, { kind: "buy", itemId: action.itemId }),
+      };
+    case "shopConfigRequested":
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, adminShopConfig: null, lastAdminSubject: "shopConfig" };
+    case "shopConfigSaveStarted":
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, savingShopConfig: true, lastAdminSubject: "shopConfig" };
     default: {
       const never: never = action;
       return never;
@@ -128,7 +156,16 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         room: msg,
         queued: false,
         privateCode: null,
-        ...(isNewRoom ? { result: null, rejection: null, opponentDropped: null } : {}),
+        ...(isNewRoom
+          ? {
+              result: null,
+              rejection: null,
+              opponentDropped: null,
+              // The baseline the game-over screen's "+N Lunch Money" is measured from.
+              lunchMoneyAtGameStart: state.account?.lunchMoney ?? null,
+              lunchMoneyEarned: null,
+            }
+          : {}),
       };
     }
 
@@ -180,10 +217,11 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
           seq: (state.accountError?.seq ?? 0) + 1,
         },
         accountPending: false,
+        pendingShopReplies: pendingShopRepliesAfterAccountError(state.pendingShopReplies, msg.code),
       };
 
     case "profile":
-      return { ...state, account: msg.profile };
+      return { ...state, account: msg.profile, lunchMoneyEarned: lunchMoneyEarnedAfter(state, msg.profile.lunchMoney) };
 
     case "passwordChanged":
       return {
@@ -215,6 +253,32 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       return state.savingDeck ? withAdminNotice(withDeck, "deck", "Deck saved.") : withDeck;
     }
 
+    case "shop": {
+      // A `shop` message answers both a plain `shopRequest` and a successful `shopBuy` —
+      // only the latter is a purchase. The oldest unanswered one says which it is.
+      const [answeredReply, ...stillPending] = state.pendingShopReplies;
+      const withShop: AppState = {
+        ...state,
+        shop: { items: msg.items, balance: msg.balance },
+        pendingShopReplies: stillPending,
+      };
+      if (answeredReply?.kind !== "buy") return withShop;
+      return {
+        ...withShop,
+        shopPurchase: { itemId: answeredReply.itemId, seq: (state.shopPurchase?.seq ?? 0) + 1 },
+      };
+    }
+
+    case "shopConfig": {
+      // Same reasoning as `settings`, below.
+      const withShopConfig: AppState = {
+        ...state,
+        adminShopConfig: { items: msg.items, updatedAt: msg.updatedAt, updatedBy: msg.updatedBy },
+        savingShopConfig: false,
+      };
+      return state.savingShopConfig ? withAdminNotice(withShopConfig, "shopConfig", "Shop saved.") : withShopConfig;
+    }
+
     case "adminError": {
       const subject = adminErrorSubject(state, msg.code);
       const adminMessageSeq = state.adminMessageSeq + 1;
@@ -223,6 +287,7 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         // Only the failed subject's save is over; a save of the other subject still waits.
         savingSettings: subject === "settings" ? false : state.savingSettings,
         savingDeck: subject === "deck" ? false : state.savingDeck,
+        savingShopConfig: subject === "shopConfig" ? false : state.savingShopConfig,
         adminMessageSeq,
         adminNotice: null,
         adminError: { subject, code: msg.code, message: msg.message, seq: adminMessageSeq },
@@ -248,14 +313,54 @@ function withAdminNotice(state: AppState, subject: AdminSubject, text: string): 
 }
 
 /**
- * Which panel an `adminError` belongs to. INVALID_SETTINGS and INVALID_DECK name it
- * outright. FORBIDDEN does not, so it goes to the one save in flight, or else to the
- * subject last requested or saved.
+ * Which panel an `adminError` belongs to. INVALID_SETTINGS, INVALID_DECK, and INVALID_SHOP
+ * name it outright. FORBIDDEN does not, so it goes to the one save in flight, or else to
+ * the subject last requested or saved.
  */
 function adminErrorSubject(state: AppState, code: AdminErrorCode): AdminSubject {
   if (code === "INVALID_SETTINGS") return "settings";
   if (code === "INVALID_DECK") return "deck";
-  if (state.savingSettings && !state.savingDeck) return "settings";
-  if (state.savingDeck && !state.savingSettings) return "deck";
+  if (code === "INVALID_SHOP") return "shopConfig";
+  const savesInFlight: AdminSubject[] = [];
+  if (state.savingSettings) savesInFlight.push("settings");
+  if (state.savingDeck) savesInFlight.push("deck");
+  if (state.savingShopConfig) savesInFlight.push("shopConfig");
+  const [onlySaveInFlight] = savesInFlight;
+  if (savesInFlight.length === 1 && onlySaveInFlight) return onlySaveInFlight;
   return state.lastAdminSubject ?? "settings";
+}
+
+/** The queue with one more expected answer — unless the socket is not open, in which case
+ *  the message is dropped unsent and no answer will ever come. */
+function withPendingShopReply(state: AppState, pendingReply: PendingShopReply): PendingShopReply[] {
+  if (state.connection.phase !== "connected") return state.pendingShopReplies;
+  return [...state.pendingShopReplies, pendingReply];
+}
+
+/**
+ * What is still waiting after an `accountError`. A buy refusal answers the oldest pending
+ * buy. NOT_LOGGED_IN answers everything (nothing more will come). Any other code is about
+ * something else, such as `appearanceSet`, and leaves the queue alone.
+ */
+function pendingShopRepliesAfterAccountError(
+  pendingShopReplies: PendingShopReply[],
+  code: AccountErrorCode,
+): PendingShopReply[] {
+  if (code === "NOT_LOGGED_IN") return [];
+  if (!BUY_REFUSAL_CODES.includes(code)) return pendingShopReplies;
+  const refusedBuyIndex = pendingShopReplies.findIndex((pendingReply) => pendingReply.kind === "buy");
+  if (refusedBuyIndex === -1) return pendingShopReplies;
+  return pendingShopReplies.filter((_, replyIndex) => replyIndex !== refusedBuyIndex);
+}
+
+/**
+ * The finished game's earnings: the first profile after `gameOver` (the server pushes it
+ * right behind the result) against the balance when the room started. Set once, so a
+ * later profile — a buy on the game-over screen — never changes it, and never negative.
+ */
+function lunchMoneyEarnedAfter(state: AppState, lunchMoney: number): number | null {
+  if (state.lunchMoneyEarned !== null) return state.lunchMoneyEarned;
+  if (state.result === null || state.lunchMoneyAtGameStart === null) return null;
+  const earned = lunchMoney - state.lunchMoneyAtGameStart;
+  return earned >= 0 ? earned : null;
 }

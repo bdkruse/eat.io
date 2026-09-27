@@ -3,6 +3,7 @@ import { useGame } from "../state/GameProvider.js";
 import { selectScreen } from "../state/gameState.js";
 import type { DetailLevel } from "../scene/detail.js";
 import { useLocalState } from "../state/LocalState.js";
+import { CoinIcon } from "./icons.js";
 
 const DETAIL_OPTIONS: { level: DetailLevel; label: string }[] = [
   { level: "high", label: "High" },
@@ -18,7 +19,7 @@ export function TopBar({
   onRequestLogin: () => void;
 }) {
   const { state } = useGame();
-  const { detail, setDetail, setProfileOpen, setAdminOpen, setCreatorOpen } = useLocalState();
+  const { detail, setDetail, setProfileOpen, setAdminOpen, setCreatorOpen, openShop } = useLocalState();
   const live = state.connection.phase === "connected";
   const phase = state.connection.phase;
   const label = live
@@ -31,7 +32,8 @@ export function TopBar({
           ? "Connecting"
           : "Offline";
   // Hidden during a game — there is no room for it, and nothing to do with it there. The
-  // Admin and Creator buttons follow the same rule (§9).
+  // Admin, Creator, and Shop buttons and the balance follow the same rule (§9, §13.7). A
+  // guest earns nothing and cannot buy, so a guest sees neither the balance nor the Shop.
   const showProfileButton = selectScreen(state) !== "game";
   const account = state.account;
   const canOpenAdmin = account?.permissions.includes("settings.edit") ?? false;
@@ -52,6 +54,17 @@ export function TopBar({
           <button className="profile-button" onClick={() => setCreatorOpen(true)}>
             Creator
           </button>
+        )}
+        {showProfileButton && account && (
+          <button className="profile-button" onClick={() => openShop()}>
+            Shop
+          </button>
+        )}
+        {showProfileButton && account && (
+          <span className="profile-button profile-button--static" title="Lunch Money" aria-label={`${account.lunchMoney} Lunch Money`}>
+            <CoinIcon />
+            {account.lunchMoney}
+          </span>
         )}
         {showProfileButton &&
           (account ? (

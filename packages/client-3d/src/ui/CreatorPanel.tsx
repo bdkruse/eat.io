@@ -4,6 +4,7 @@ import { useGame } from "../state/GameProvider.js";
 import { selectAdminMessages } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { cardGlyph } from "./cardGlyph.js";
+import { CreatorShopTab } from "./CreatorShopTab.js";
 import { replySinceMount } from "./replySinceMount.js";
 import {
   createDeckDraft,
@@ -16,11 +17,9 @@ import {
   type DeckCopiesDraft,
 } from "./deckEditor.js";
 
-/** The creator panel's own tabs. Deck is the only one today; a later task adds Shop
- *  alongside it, which is why this is a strip rather than a single fixed view (§9/§13). */
-type CreatorTab = "deck";
-const CREATOR_TABS: CreatorTab[] = ["deck"];
-const CREATOR_TAB_LABELS: Record<CreatorTab, string> = { deck: "Deck" };
+/** The creator panel's own tools, one tab each (§9, §13.7). */
+type CreatorTab = "deck" | "shop";
+const CREATOR_TAB_LABELS: Record<CreatorTab, string> = { deck: "Deck", shop: "Shop" };
 
 /** Docked left, like the other panels. Only a profile with `deck.edit` ever sees this
  *  (the top bar hides the Creator button otherwise), but it guards on that too (§9). */
@@ -53,6 +52,8 @@ export function CreatorPanel() {
   }, [adminDeck]);
 
   if (!account || !account.permissions.includes("deck.edit")) return null;
+  // The Shop tab needs `shop.edit`, which only the Creator has (§13.4).
+  const creatorTabs: CreatorTab[] = account.permissions.includes("shop.edit") ? ["deck", "shop"] : ["deck"];
 
   // Before the first `deck` message answers `requestDeck`, there are no rows yet — do not
   // flash a total-out-of-range complaint about a deck that has not loaded.
@@ -67,7 +68,7 @@ export function CreatorPanel() {
       <h2 className="panel__title">Creator</h2>
 
       <div className="chips" role="tablist" aria-label="Creator tools">
-        {CREATOR_TABS.map((tab) => (
+        {creatorTabs.map((tab) => (
           <button
             key={tab}
             className={tab === activeTab ? "chip chip--picked" : "chip"}
@@ -79,6 +80,8 @@ export function CreatorPanel() {
           </button>
         ))}
       </div>
+
+      {activeTab === "shop" && <CreatorShopTab onClose={() => setCreatorOpen(false)} />}
 
       {activeTab === "deck" && (
         <>

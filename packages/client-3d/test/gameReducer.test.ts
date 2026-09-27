@@ -3,6 +3,7 @@ import type { Profile, RoomStateMessage, ServerMessage } from "@eat.io/protocol"
 import {
   initialAppState,
   selectAdminMessages,
+  selectBuyingItemId,
   selectBackToMenuStaysConnected,
   selectScreen,
   type AppState,
@@ -34,6 +35,8 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
   pointsScored: 0,
   gamesPlayed: 0,
   gamesWon: 0,
+  lunchMoney: 0,
+  ownedItems: [],
   createdAt: 1_700_000_000_000,
   lastLoginAt: null,
   ...over,
@@ -576,4 +579,225 @@ test("an error for one subject leaves the other subject's save in flight", () =>
   state = server(state, adminErrorMessage());
   expect(state.savingSettings).toBe(false);
   expect(state.savingDeck).toBe(true);
+});
+
+// ---------- Task 11: the shop, the creator's shop tool, and Lunch Money ----------
+
+const shopMessage = (over: Partial<Extract<ServerMessage, { type: "shop" }>> = {}) => ({
+  type: "shop" as const,
+  items: [
+    { id: "extra.crown", name: "Crown", kind: "extra" as const, price: 100, available: true, owned: false },
+    { id: "hair.silver", name: "Silver Hair", kind: "hairColor" as const, price: 40, available: true, owned: true },
+  ],
+  balance: 120,
+  ...over,
+});
+
+const shopConfigMessage = (over: Partial<Extract<ServerMessage, { type: "shopConfig" }>> = {}) => ({
+  type: "shopConfig" as const,
+  items: [
+    { id: "extra.crown", name: "Crown", kind: "extra" as const, price: 100, available: true, owned: false },
+    { id: "extra.bowTie", name: "Bow Tie", kind: "extra" as const, price: 30, available: false, owned: false },
+  ],
+  updatedAt: null,
+  updatedBy: null,
+  ...over,
+});
+
+const accountErrorMessage = (code: "NOT_ENOUGH" | "NOT_AVAILABLE" | "ALREADY_OWNED" | "WRONG_PASSWORD") => ({
+  type: "accountError" as const,
+  code,
+  message: "Refused.",
+});
+
+const loggedIn = (over: Partial<Profile> = {}) =>
+  server(
+    gameReducer(welcomed(), { kind: "connection", state: { phase: "connected", error: null, attempt: 0 } }),
+    { type: "accountLoggedIn", profile: profile(over) },
+  );
+
+test("a shop message stores the items and the balance verbatim", () => {
+  const state = server(loggedIn(), shopMessage());
+  expect(state.shop?.balance).toBe(120);
+  expect(state.shop?.items.map((item) => item.id)).toEqual(["extra.crown", "hair.silver"]);
+});
+
+test("a shop message with no buy in flight records no purchase", () => {
+  const state = server(loggedIn(), shopMessage());
+  expect(state.shopPurchase).toBeNull();
+  expect(selectBuyingItemId(state)).toBeNull();
+});
+
+test("shopBuyStarted marks the item being bought and clears a leftover account error", () => {
+  let state = server(loggedIn(), accountErrorMessage("WRONG_PASSWORD"));
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  expect(selectBuyingItemId(state)).toBe("extra.crown");
+  expect(state.accountError).toBeNull();
+});
+
+test("a shop message answering a buy records the purchase, re-triggering via seq on the next one", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, shopMessage({ balance: 20 }));
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+  expect(state.shop?.balance).toBe(20);
+
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "hair.silver" });
+  state = server(state, shopMessage({ balance: 0 }));
+  expect(state.shopPurchase).toEqual({ itemId: "hair.silver", seq: 2 });
+});
+
+test("a refused buy ends the buy in flight without a purchase", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, accountErrorMessage("NOT_ENOUGH"));
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.shopPurchase).toBeNull();
+  expect(state.accountError?.code).toBe("NOT_ENOUGH");
+});
+
+test("a dropped connection ends a buy in flight, so Buy is not stuck disabled", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, {
+    kind: "connection",
+    state: { ...state.connection, phase: "reconnecting" },
+  });
+  expect(selectBuyingItemId(state)).toBeNull();
+});
+
+test("shopRequested clears an account error left from somewhere else", () => {
+  let state = server(loggedIn(), accountErrorMessage("WRONG_PASSWORD"));
+  state = gameReducer(state, { kind: "shopRequested" });
+  expect(state.accountError).toBeNull();
+});
+
+test("backToMenu clears the shop, any buy in flight, and the creator's shop config", () => {
+  let state = server(loggedIn(), shopMessage());
+  state = server(state, shopConfigMessage());
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "backToMenu" });
+  expect(state.shop).toBeNull();
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.adminShopConfig).toBeNull();
+});
+
+test("a shopConfig message with no save in flight stores the config but raises no notice", () => {
+  const state = server(loggedIn(), shopConfigMessage({ updatedBy: "Jae", updatedAt: 1_700_000_000_000 }));
+  expect(state.adminShopConfig?.items).toHaveLength(2);
+  expect(state.adminShopConfig?.updatedBy).toBe("Jae");
+  expect(state.adminNotice).toBeNull();
+});
+
+test("a shopConfig message answering a save raises a notice for the shop tab only", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopConfigSaveStarted" });
+  expect(state.savingShopConfig).toBe(true);
+  state = server(state, shopConfigMessage());
+  expect(state.savingShopConfig).toBe(false);
+  expect(selectAdminMessages(state, "shopConfig").notice?.text).toBe("Shop saved.");
+  expect(selectAdminMessages(state, "deck")).toEqual({ notice: null, error: null });
+});
+
+test("requesting the shop config drops the cached copy, so a reopened tab waits for the fresh reply", () => {
+  let state = server(loggedIn(), shopConfigMessage());
+  state = gameReducer(state, { kind: "shopConfigRequested" });
+  expect(state.adminShopConfig).toBeNull();
+  expect(state.lastAdminSubject).toBe("shopConfig");
+});
+
+test("INVALID_SHOP belongs to the shop tab and ends only the shop save", () => {
+  let state = gameReducer(loggedIn(), { kind: "deckSaveStarted" });
+  state = gameReducer(state, { kind: "shopConfigSaveStarted" });
+  state = server(state, adminErrorMessage({ code: "INVALID_SHOP", message: "Bad price." }));
+  expect(selectAdminMessages(state, "shopConfig").error?.code).toBe("INVALID_SHOP");
+  expect(selectAdminMessages(state, "deck").error).toBeNull();
+  expect(state.savingShopConfig).toBe(false);
+  expect(state.savingDeck).toBe(true);
+});
+
+test("a FORBIDDEN error during a shop save belongs to the shop tab", () => {
+  const state = server(
+    gameReducer(loggedIn(), { kind: "shopConfigSaveStarted" }),
+    adminErrorMessage({ code: "FORBIDDEN", message: "You cannot do that." }),
+  );
+  expect(selectAdminMessages(state, "shopConfig").error?.code).toBe("FORBIDDEN");
+  expect(state.savingShopConfig).toBe(false);
+});
+
+test("the Lunch Money earned is the difference between the profile at the game's start and the one after it", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room());
+  expect(state.lunchMoneyEarned).toBeNull();
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
+  expect(state.lunchMoneyEarned).toBe(12);
+});
+
+test("a later profile (a buy on the game-over screen) does not change the Lunch Money earned", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room());
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 12 }) });
+  expect(state.lunchMoneyEarned).toBe(12);
+});
+
+test("a guest earns no Lunch Money, so there is nothing to show", () => {
+  let state = server(welcomed(), room());
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  expect(state.lunchMoneyEarned).toBeNull();
+});
+
+test("the next game starts with no Lunch Money earned yet", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room());
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
+  state = gameReducer(state, { kind: "playAgain" });
+  expect(state.lunchMoneyEarned).toBeNull();
+  state = server(state, room());
+  state = server(state, { type: "gameOver", result: { kind: "loss", scores: { a: 3, b: 7 } } });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 115 }) });
+  expect(state.lunchMoneyEarned).toBe(3);
+});
+
+test("the answer to a shop request still in flight when Buy is pressed is not the purchase", () => {
+  // The server answers in the order it was asked: the request first, then the buy.
+  let state = gameReducer(loggedIn(), { kind: "shopRequested" });
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, shopMessage({ balance: 120 }));
+  expect(state.shopPurchase).toBeNull();
+  expect(selectBuyingItemId(state)).toBe("extra.crown");
+  state = server(state, shopMessage({ balance: 20 }));
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+  expect(selectBuyingItemId(state)).toBeNull();
+});
+
+test("a shop request sent after Buy is answered after the purchase, and is not a second purchase", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopRequested" });
+  state = server(state, shopMessage({ balance: 20 }));
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+  state = server(state, shopMessage({ balance: 20 }));
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+});
+
+test("a refused buy behind a pending request leaves that request's answer alone", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopRequested" });
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, shopMessage());
+  state = server(state, accountErrorMessage("NOT_ENOUGH"));
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.pendingShopReplies).toEqual([]);
+});
+
+test("an account error that is not about a buy leaves the buy in flight", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, { type: "accountError", code: "NOT_OWNED", message: "That look uses a shop item you do not own." });
+  expect(selectBuyingItemId(state)).toBe("extra.crown");
+});
+
+test("a shop request or buy made while disconnected is never sent, so nothing waits for it", () => {
+  let state = gameReducer(loggedIn(), { kind: "connection", state: { phase: "reconnecting", error: null, attempt: 1 } });
+  state = gameReducer(state, { kind: "shopRequested" });
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  expect(state.pendingShopReplies).toEqual([]);
 });

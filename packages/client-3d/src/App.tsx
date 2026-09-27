@@ -16,6 +16,7 @@ import { HandBar } from "./ui/HandBar.js";
 import { MenuPanel, type MenuTab } from "./ui/MenuPanel.js";
 import { ProfilePanel } from "./ui/ProfilePanel.js";
 import { QueuePanel } from "./ui/QueuePanel.js";
+import { ShopPanel } from "./ui/ShopPanel.js";
 import { TopBar } from "./ui/TopBar.js";
 
 /** Panels over the canvas. Each fades on its own, so screens cross-dissolve as the camera moves. */
@@ -28,13 +29,14 @@ function Interface() {
   const screen = selectScreen(state);
   const inMenus = screen === "connect" || screen === "queue";
   const editingLook = openPanel === "customize" && inMenus;
-  // The profile, admin, and creator panels are all reachable from the menu, the queue, and
-  // the game-over screen — everywhere the top bar's own buttons for them show (hidden only
-  // during a game).
+  // The profile, admin, creator, and shop panels are all reachable from the menu, the queue,
+  // and the game-over screen — everywhere the top bar's own buttons for them show (hidden
+  // only during a game).
   const viewingProfile = openPanel === "profile" && screen !== "game";
   const viewingAdmin = openPanel === "admin" && screen !== "game";
   const viewingCreator = openPanel === "creator" && screen !== "game";
-  const showScreenPanel = !editingLook && !viewingProfile && !viewingAdmin && !viewingCreator;
+  const viewingShop = openPanel === "shop" && screen !== "game";
+  const showScreenPanel = !editingLook && !viewingProfile && !viewingAdmin && !viewingCreator && !viewingShop;
 
   return (
     <div className="interface">
@@ -57,6 +59,9 @@ function Interface() {
       </Fade>
       <Fade show={viewingCreator} className="dock dock--left">
         <CreatorPanel />
+      </Fade>
+      <Fade show={viewingShop} className="dock dock--left">
+        <ShopPanel />
       </Fade>
       <Fade show={screen === "game" || screen === "gameOver"} className="dock dock--top">
         <GameHud />

@@ -44,9 +44,9 @@ export const CAMERA_SHOTS: Record<ShotName, CameraShot> = {
 };
 
 /**
- * A match outranks showing your kid — whether that is the customize screen or the
- * profile panel (the caller ORs the two together, §11) — if one is found mid-edit or
- * mid-profile, go to the table.
+ * A match outranks showing your kid — whether that is the customize screen, the profile
+ * panel, or the shop (the caller ORs them together, §11, §13.7) — if one is found mid-edit
+ * or mid-profile, go to the table.
  *
  * `forceMenuShot`: the admin or creator panel is open. Neither one shows your kid, and
  * both use the menu shot regardless of the screen underneath — the queue or even the
