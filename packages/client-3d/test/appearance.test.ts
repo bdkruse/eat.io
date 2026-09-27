@@ -1,9 +1,23 @@
+import {
+  AppearanceSchema,
+  FREE_ACCESSORIES,
+  FREE_EYE_COLORS,
+  FREE_EYE_SHAPES,
+  FREE_HAIR_COLORS,
+  FREE_MOUTH_SHAPES,
+  FREE_SHIRT_COLORS,
+  lockedItemsIn,
+} from "@eat.io/protocol";
 import { expect, test } from "vitest";
 import {
   ACCESSORIES,
   appearanceFromName,
+  DEFAULT_APPEARANCE,
+  EYE_COLORS,
+  EYE_SHAPES,
   HAIR_COLORS,
   HAIR_STYLES,
+  MOUTH_SHAPES,
   PANTS_COLORS,
   randomAppearance,
   SHIRT_COLORS,
@@ -32,5 +46,34 @@ test("generated kids only use listed options", () => {
     expect(SHIRT_COLORS).toContain(look.shirtColor);
     expect(PANTS_COLORS).toContain(look.pantsColor);
     expect(ACCESSORIES).toContain(look.accessory);
+    expect(EYE_SHAPES).toContain(look.eyeShape);
+    expect(EYE_COLORS).toContain(look.eyeColor);
+    expect(MOUTH_SHAPES).toContain(look.mouthShape);
   }
+});
+
+test("generated kids never wear a shop item, and always have a face", () => {
+  const seenFaces = { eyeShapes: new Set<string>(), eyeColors: new Set<string>(), mouthShapes: new Set<string>() };
+  for (let seed = 0; seed < 2000; seed++) {
+    const look = randomAppearance(seed);
+    expect(lockedItemsIn(look, [])).toEqual([]);
+    expect(FREE_HAIR_COLORS).toContain(look.hairColor);
+    expect(FREE_SHIRT_COLORS).toContain(look.shirtColor);
+    expect(FREE_ACCESSORIES).toContain(look.accessory);
+    expect(FREE_EYE_SHAPES).toContain(look.eyeShape);
+    expect(FREE_EYE_COLORS).toContain(look.eyeColor);
+    expect(FREE_MOUTH_SHAPES).toContain(look.mouthShape);
+    seenFaces.eyeShapes.add(look.eyeShape);
+    seenFaces.eyeColors.add(look.eyeColor);
+    seenFaces.mouthShapes.add(look.mouthShape);
+  }
+  // Every free face value turns up somewhere in the crowd.
+  expect(seenFaces.eyeShapes.size).toBe(FREE_EYE_SHAPES.length);
+  expect(seenFaces.eyeColors.size).toBe(FREE_EYE_COLORS.length);
+  expect(seenFaces.mouthShapes.size).toBe(FREE_MOUTH_SHAPES.length);
+});
+
+test("the default look is free and complete", () => {
+  expect(AppearanceSchema.parse(DEFAULT_APPEARANCE)).toEqual(DEFAULT_APPEARANCE);
+  expect(lockedItemsIn(DEFAULT_APPEARANCE, [])).toEqual([]);
 });

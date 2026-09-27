@@ -3,6 +3,7 @@ import { useRef, type ReactNode } from "react";
 import { BoxGeometry, CapsuleGeometry, CircleGeometry, CylinderGeometry, SphereGeometry, type Group } from "three";
 import type { Appearance } from "../../appearance/appearance.js";
 import { sharedGeometry, toon, unlit } from "../materials.js";
+import { BowTie } from "./KidExtras.js";
 import { KidHead, type KidHeadHandles } from "./KidHead.js";
 import { computeJoints, type Animation, type Pose } from "./poses.js";
 
@@ -157,6 +158,7 @@ export function Kid({
           {apron && (
             <mesh geometry={sphere(0.13)} material={toon("#fbfaf6")} position={[0, 0.1, 0.085]} scale={[1.05, 1.6, 0.32]} />
           )}
+          {appearance.accessory === "bowTie" && <BowTie shirtColor={appearance.shirtColor} />}
           {arm(-1, rightShoulder, rightElbow, true)}
           {arm(1, leftShoulder, leftElbow, true)}
           {carrying && (

@@ -2,12 +2,10 @@ import { forwardRef, useMemo } from "react";
 import { CapsuleGeometry, CylinderGeometry, SphereGeometry, TorusGeometry, type Group } from "three";
 import type { Appearance } from "../../appearance/appearance.js";
 import { mixColor, sharedGeometry, toon } from "../materials.js";
+import { HAT_ACCESSORIES, HeadExtra } from "./KidExtras.js";
+import { Eye, INK, MOUTH, RestingMouth, WHITE } from "./KidFace.js";
 
 export const HEAD_RADIUS = 0.17;
-
-const INK = "#2a2522";
-const WHITE = "#ffffff";
-const MOUTH = "#7a2f27";
 
 const sphere = (radius: number, detail = 16) =>
   sharedGeometry(`sphere:${radius}:${detail}`, () => new SphereGeometry(radius, detail, Math.max(8, detail * 0.75)));
@@ -24,7 +22,6 @@ const shell = (radius: number, from: number, to: number, faceGap: number) =>
     return new SphereGeometry(radius, 24, 12, start, Math.PI * 2 - faceGap, Math.PI * from, Math.PI * (to - from));
   });
 
-const smileGeometry = () => sharedGeometry("smile", () => new TorusGeometry(0.032, 0.0075, 6, 16, Math.PI));
 const ringGeometry = () => sharedGeometry("lens", () => new TorusGeometry(0.04, 0.0065, 6, 20));
 const bandGeometry = (radius: number, tube: number) =>
   sharedGeometry(`band:${radius}:${tube}`, () => new TorusGeometry(radius, tube, 8, 28));
@@ -62,7 +59,7 @@ export interface KidHeadHandles {
   ponytail: Group | null;
 }
 
-/** Hair, face, and accessory. The mouth is its own group so it can chomp on its own. */
+/** Hair, face, and extra. The mouth is its own group so it can chomp on its own. */
 export const KidHead = forwardRef<Group, KidHeadProps & { handles: KidHeadHandles }>(function KidHead(
   { appearance, detail, handles },
   ref,
@@ -73,7 +70,7 @@ export const KidHead = forwardRef<Group, KidHeadProps & { handles: KidHeadHandle
   const accessory = toon(accessoryColor, { doubleSided: true });
   const cheek = useMemo(() => toon(mixColor(appearance.skinTone, "#e8705f", 0.35)), [appearance.skinTone]);
   const brow = useMemo(() => toon(mixColor(appearance.hairColor, INK, 0.3)), [appearance.hairColor]);
-  const wearingHat = appearance.accessory === "cap" || appearance.accessory === "beanie";
+  const wearingHat = HAT_ACCESSORIES.has(appearance.accessory);
 
   return (
     <group ref={ref}>
@@ -82,14 +79,11 @@ export const KidHead = forwardRef<Group, KidHeadProps & { handles: KidHeadHandle
       <mesh geometry={sphere(0.04)} material={skin} position={[-0.165, -0.01, 0]} scale={[0.6, 1, 0.85]} />
       <mesh geometry={sphere(0.04)} material={skin} position={[0.165, -0.01, 0]} scale={[0.6, 1, 0.85]} />
 
-      {/* eyes */}
-      <group ref={(node) => void (handles.eyes = node)}>
-        {[-1, 1].map((side) => (
-          <group key={side} position={[side * 0.06, 0.02, 0.152]}>
-            <mesh geometry={sphere(0.03, 12)} material={toon(INK)} scale={[0.9, 1.2, 0.6]} />
-            {detail === "high" && (
-              <mesh geometry={sphere(0.009, 8)} material={toon(WHITE)} position={[0.01, 0.014, 0.014]} />
-            )}
+      {/* eyes: the group sits at eye height so a blink closes each eye in place */}
+      <group ref={(node) => void (handles.eyes = node)} position={[0, 0.02, 0]}>
+        {([-1, 1] as const).map((side) => (
+          <group key={side} position={[side * 0.06, 0, 0.152]}>
+            <Eye shape={appearance.eyeShape} eyeColor={appearance.eyeColor} skinTone={appearance.skinTone} side={side} detail={detail} />
           </group>
         ))}
       </group>
@@ -118,10 +112,10 @@ export const KidHead = forwardRef<Group, KidHeadProps & { handles: KidHeadHandle
         </>
       )}
 
-      {/* mouth: a smile line at rest, an opening when talking or chomping */}
+      {/* mouth: the chosen shape at rest, an opening when talking or chomping */}
       <group position={[0, -0.068, 0.155]}>
-        <group ref={(node) => void (handles.mouthSmile = node)} rotation={[0, 0, Math.PI]}>
-          <mesh geometry={smileGeometry()} material={toon(MOUTH)} />
+        <group ref={(node) => void (handles.mouthSmile = node)}>
+          <RestingMouth shape={appearance.mouthShape} detail={detail} />
         </group>
         <group ref={(node) => void (handles.mouthOpen = node)} visible={false}>
           <mesh geometry={sphere(0.042, 14)} material={toon(MOUTH)} scale={[1, 1, 0.45]} />
@@ -157,6 +151,8 @@ export const KidHead = forwardRef<Group, KidHeadProps & { handles: KidHeadHandle
           <mesh geometry={sphere(0.05, 12)} material={toon(WHITE)} position={[0, 0.23, 0]} />
         </group>
       )}
+
+      <HeadExtra accessory={appearance.accessory} color={accessoryColor} detail={detail} />
     </group>
   );
 });
