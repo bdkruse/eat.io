@@ -177,6 +177,17 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         },
       };
 
+    // Task 6 builds the admin and creator panels' own state from these; for now they only
+    // need to exist so the switch stays exhaustive against the protocol.
+    case "settings":
+      return state;
+
+    case "deck":
+      return state;
+
+    case "adminError":
+      return state;
+
     default: {
       const never: never = msg;
       return never;

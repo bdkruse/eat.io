@@ -26,6 +26,15 @@
 .name-tag--far { background: var(--opponent); }
 .name-tag__ready { background: rgba(255, 255, 255, 0.9); color: var(--add); font-size: 10px; padding: 1px 6px; border-radius: 999px; letter-spacing: 0.05em; }
 
+.servings-marker {
+  display: flex; align-items: center; gap: 4px; white-space: nowrap;
+  padding: 3px 10px; border-radius: 999px; color: #fff;
+  font-family: var(--font-structural); font-weight: 800; font-size: 13px;
+  box-shadow: 0 3px 0 rgba(35, 42, 36, 0.25); user-select: none;
+}
+.servings-marker--near { background: var(--you); }
+.servings-marker--far { background: var(--opponent); }
+
 /* ---------- scoreboard ---------- */
 .hud { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .hud .scorecard { width: min(250px, 42vw); }
@@ -86,6 +95,8 @@
 }
 .lunch-card--add .lunch-card__glyph { background: var(--add); }
 .lunch-card--multiply .lunch-card__glyph { background: var(--multiply); }
+.lunch-card--addAll .lunch-card__glyph { background: var(--add); }
+.lunch-card--extraServings .lunch-card__glyph { background: var(--gold); color: var(--ink); }
 .lunch-card__name { font-family: var(--font-structural); font-weight: 700; font-size: 14px; line-height: 1.2; padding: 10px 12px 6px; flex: 1; }
 .lunch-card__targets { display: flex; align-items: center; gap: 4px; padding: 0 12px; font-size: 12px; color: var(--ink-2); font-weight: 600; }
 .lunch-card__pip { width: 9px; height: 9px; border-radius: 3px; background: var(--ink-2); }

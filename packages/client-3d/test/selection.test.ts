@@ -56,3 +56,8 @@ test("submittable requires a card AND exactly its target count", () => {
 test("no card means never submittable, however many trays are somehow set", () => {
   expect(isSubmittable({ cardInstanceId: null, targetTrayIds: ["t1"] }, 1)).toBe(false);
 });
+
+test("a card with no targets is submittable the moment it is chosen", () => {
+  const selection = selectCard(emptySelection, "c-addAll-1");
+  expect(isSubmittable(selection, 0)).toBe(true);
+});

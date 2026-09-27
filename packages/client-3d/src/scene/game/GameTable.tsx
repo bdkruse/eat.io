@@ -3,6 +3,7 @@ import { useFrame } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { MathUtils, type Group } from "three";
 import type { Result, RoomStateMessage, TrayView } from "@eat.io/protocol";
+import { useBoostedTray } from "../../hooks/useBoostedTray.js";
 import { useEatenTrays } from "../../hooks/useEatenTrays.js";
 import type { Selection } from "../../state/selection.js";
 import { appearanceFromName, type Appearance } from "../../appearance/appearance.js";
@@ -11,6 +12,7 @@ import { CUSTOMIZE_SPOT } from "../cameraShots.js";
 import { BENCH_HEIGHT, Kid } from "../characters/Kid.js";
 import type { Animation, Pose } from "../characters/poses.js";
 import { toon } from "../materials.js";
+import { ServingsMarker } from "./ServingsMarker.js";
 import {
   EATER_FACING,
   EATER_POSITION,
@@ -144,6 +146,8 @@ function RoomLayer({
   const yourTrays = useEatenTrays(room.you.table);
   const opponentTrays = useEatenTrays(room.opponent.table);
   const biting = yourTrays.biting || opponentTrays.biting;
+  const yourBoostedTrayId = useBoostedTray(room.you.table, room.you.extraServings);
+  const opponentBoostedTrayId = useBoostedTray(room.opponent.table, room.opponent.extraServings);
   // A logged-in opponent's saved look wins; otherwise the same name-derived look as a
   // guest opponent always gets (§11).
   const opponentLook = useMemo(
@@ -183,6 +187,7 @@ function RoomLayer({
         selection={selection}
         targetCount={targetCount}
         showLabels={showLabels}
+        boostedTrayId={yourBoostedTrayId}
         onTrayClick={interactive ? onTrayClick : undefined}
       />
       <TrayRow
@@ -193,7 +198,10 @@ function RoomLayer({
         selection={null}
         targetCount={0}
         showLabels={showLabels}
+        boostedTrayId={opponentBoostedTrayId}
       />
+      <ServingsMarker side="near" slotCount={room.you.table.length} extraServings={room.you.extraServings} />
+      <ServingsMarker side="far" slotCount={room.opponent.table.length} extraServings={room.opponent.extraServings} />
     </>
   );
 }
@@ -207,6 +215,7 @@ function TrayRow({
   selection,
   targetCount,
   showLabels,
+  boostedTrayId,
   onTrayClick,
 }: {
   side: Side;
@@ -216,6 +225,7 @@ function TrayRow({
   selection: Selection | null;
   targetCount: number;
   showLabels: boolean;
+  boostedTrayId?: string | null;
   onTrayClick?: ((trayId: string) => void) | undefined;
 }) {
   // Trays already on the table when this row first renders start in place; any tray seen
@@ -241,6 +251,7 @@ function TrayRow({
             slotCount={live.length}
             fresh={seen.current !== null && !seen.current.has(tray.id)}
             eaten={eaten}
+            boosted={boostedTrayId === tray.id}
             selected={position >= 0}
             order={position >= 0 && targetCount > 1 ? position + 1 : null}
             showLabel={showLabels}

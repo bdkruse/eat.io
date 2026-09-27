@@ -5,10 +5,10 @@ import { selectAwaitingYou, selectBoardFrozen } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { RoundChip } from "./GameHud.js";
 import { useRetained } from "../hooks/useRetained.js";
+import { cardGlyph } from "./cardGlyph.js";
 
 function LunchCard({ card, index, selected, disabled, onClick }: { card: CardView; index: number; selected: boolean; disabled: boolean; onClick: () => void }) {
   // Everything shown comes from server data — no switch over card ids.
-  const glyph = card.action === "add" ? `+${card.amount}` : `×${card.amount}`;
   return (
     <button
       className={`lunch-card lunch-card--${card.action}${selected ? " lunch-card--selected" : ""}`}
@@ -18,13 +18,19 @@ function LunchCard({ card, index, selected, disabled, onClick }: { card: CardVie
       title={card.name}
     >
       <span className="lunch-card__key">{index + 1}</span>
-      <span className="lunch-card__glyph">{glyph}</span>
+      <span className="lunch-card__glyph">{cardGlyph(card)}</span>
       <span className="lunch-card__name">{card.name}</span>
       <span className="lunch-card__targets">
-        {Array.from({ length: card.targets }, (_, pip) => (
-          <span key={pip} className="lunch-card__pip" />
-        ))}
-        {card.targets} {card.targets === 1 ? "tray" : "trays"}
+        {card.targets === 0 ? (
+          "no trays"
+        ) : (
+          <>
+            {Array.from({ length: card.targets }, (_, pip) => (
+              <span key={pip} className="lunch-card__pip" />
+            ))}
+            {card.targets} {card.targets === 1 ? "tray" : "trays"}
+          </>
+        )}
       </span>
     </button>
   );

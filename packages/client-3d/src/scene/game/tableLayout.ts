@@ -53,6 +53,13 @@ export function traySpawnPosition(side: Side, slotCount: number): Vector3Tuple {
   return [x - 0.2, y, z];
 }
 
+/** The upcoming-servings marker sits at the foot of the row, past where a fresh tray
+ *  spawns, so it never sits under a tray sliding in. */
+export function servingsMarkerPosition(side: Side, slotCount: number): Vector3Tuple {
+  const [x, y, z] = traySpawnPosition(side, slotCount);
+  return [x - 0.16, y + 0.1, z];
+}
+
 /** Far-side trays are turned around so each player sees their tray the same way up. */
 export function trayFacing(side: Side): number {
   return side === "near" ? 0 : Math.PI;

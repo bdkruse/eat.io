@@ -3,6 +3,7 @@ import {
   EATER_POSITION,
   SEAT_POSITION,
   TABLE_DIMENSIONS,
+  servingsMarkerPosition,
   traySlotPosition,
   traySpawnPosition,
 } from "../src/scene/game/tableLayout.js";
@@ -39,5 +40,10 @@ describe("tray slots", () => {
 
   test("a fresh tray enters from the foot of the table, behind the last slot", () => {
     expect(traySpawnPosition("near", 5)[0]).toBeLessThan(traySlotPosition("near", 4)[0]);
+  });
+
+  test("the servings marker sits at the foot, behind where a fresh tray spawns", () => {
+    expect(servingsMarkerPosition("near", 5)[0]).toBeLessThan(traySpawnPosition("near", 5)[0]);
+    expect(servingsMarkerPosition("far", 5)[0]).toBeLessThan(traySpawnPosition("far", 5)[0]);
   });
 });

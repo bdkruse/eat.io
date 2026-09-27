@@ -20,8 +20,8 @@ const room = (over: Partial<RoomStateMessage> = {}): RoomStateMessage => ({
   roundIndex: 0,
   roundCount: 10,
   deadlineAt: 20000,
-  you: { seat: "a", name: "Riley", score: 0, submitted: false, appearance: null, table: [], hand: [] },
-  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, appearance: null, handCount: 5, table: [] },
+  you: { seat: "a", name: "Riley", score: 0, submitted: false, appearance: null, table: [], hand: [], extraServings: [] },
+  opponent: { seat: "b", name: "Sam", score: 0, submitted: false, appearance: null, handCount: 5, table: [], extraServings: [] },
   ...over,
 });
 
@@ -49,7 +49,7 @@ test("roomState replaces the board wholesale rather than merging", () => {
     first,
     room({
       roundIndex: 4,
-      you: { seat: "a", name: "Riley", score: 9, submitted: true, appearance: null, table: [], hand: [] },
+      you: { seat: "a", name: "Riley", score: 9, submitted: true, appearance: null, table: [], hand: [], extraServings: [] },
     }),
   );
   expect(second.room?.roundIndex).toBe(4);
