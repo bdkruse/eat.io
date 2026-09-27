@@ -197,7 +197,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setAppearance: (appearance) => send({ type: "appearanceSet", appearance }),
       requestProfile: () => send({ type: "profileRequest" }),
       dismissAccountError: () => dispatch({ kind: "dismissAccountError" }),
-      requestSettings: () => send({ type: "settingsRequest" }),
+      requestSettings: () => {
+        dispatch({ kind: "settingsRequested" });
+        send({ type: "settingsRequest" });
+      },
       saveSettings: (settings) => {
         dispatch({ kind: "settingsSaveStarted" });
         send({
@@ -207,7 +210,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           handSize: settings.handSize,
         });
       },
-      requestDeck: () => send({ type: "deckRequest" }),
+      requestDeck: () => {
+        dispatch({ kind: "deckRequested" });
+        send({ type: "deckRequest" });
+      },
       saveDeck: (entries) => {
         dispatch({ kind: "deckSaveStarted" });
         send({ type: "deckSave", cards: entries });

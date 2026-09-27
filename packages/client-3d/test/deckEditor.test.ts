@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import type { DeckCard } from "@eat.io/protocol";
 import {
   createDeckDraft,
+  deckDraftCopiesText,
   deckDraftProblem,
   deckDraftToEntries,
   deckDraftTotal,
@@ -24,43 +25,69 @@ const catalogCards = (): DeckCard[] => [
   },
 ];
 
-test("a fresh draft copies each card's current count", () => {
+test("a fresh draft copies each card's current count, as the text the field shows", () => {
   expect(createDeckDraft(catalogCards())).toEqual({
-    add1x1: 5,
-    add1x2: 7,
-    addAll1: 1,
-    servings2x2: 1,
+    add1x1: "5",
+    add1x2: "7",
+    addAll1: "1",
+    servings2x2: "1",
   });
 });
 
 test("stepping a card's copies moves it up or down by the delta", () => {
   let draft = createDeckDraft(catalogCards());
   draft = stepDeckCardCopies(draft, "add1x1", 1);
-  expect(draft.add1x1).toBe(6);
+  expect(draft.add1x1).toBe("6");
   draft = stepDeckCardCopies(draft, "add1x1", -2);
-  expect(draft.add1x1).toBe(4);
+  expect(draft.add1x1).toBe("4");
 });
 
 test("the stepper clamps at the copies-per-card range instead of going negative or past the max", () => {
   let draft = createDeckDraft(catalogCards());
   draft = stepDeckCardCopies(draft, "addAll1", -5);
-  expect(draft.addAll1).toBe(0);
+  expect(draft.addAll1).toBe("0");
   draft = stepDeckCardCopies(draft, "addAll1", 999);
-  expect(draft.addAll1).toBe(40);
+  expect(draft.addAll1).toBe("40");
 });
 
 test("typing a copies value is stored exactly, even outside the range, so the problem can surface it", () => {
-  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", 45);
-  expect(draft.add1x1).toBe(45);
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "45");
+  expect(draft.add1x1).toBe("45");
 });
 
-test("a typed value is truncated to a whole number", () => {
-  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", 6.9);
-  expect(draft.add1x1).toBe(6);
+test("a fractional entry is kept as typed and blocks Save with a whole-number message", () => {
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "6.9");
+  expect(draft.add1x1).toBe("6.9");
+  expect(deckDraftCopiesText(draft, "add1x1")).toBe("6.9");
+  expect(deckDraftProblem(catalogCards(), draft)).toContain("whole number");
+});
+
+test("a cleared field stays empty rather than turning into 0, and blocks Save", () => {
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "");
+  expect(deckDraftCopiesText(draft, "add1x1")).toBe("");
+  expect(deckDraftProblem(catalogCards(), draft)).toContain("whole number");
+  expect(deckDraftTotal(catalogCards(), draft)).toBeNull();
+});
+
+test("stepping from a fractional entry moves to the neighbouring whole number", () => {
+  const fractional = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "6.9");
+  expect(stepDeckCardCopies(fractional, "add1x1", 1).add1x1).toBe("7");
+  expect(stepDeckCardCopies(fractional, "add1x1", -1).add1x1).toBe("6");
+});
+
+test("stepping from a cleared field starts from 0", () => {
+  const cleared = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "");
+  expect(stepDeckCardCopies(cleared, "add1x1", 1).add1x1).toBe("1");
+});
+
+test("a card missing from the draft shows 0, the same count the total and Save use", () => {
+  const { add1x2: _dropped, ...missingOneCard } = createDeckDraft(catalogCards());
+  expect(deckDraftCopiesText(missingOneCard, "add1x2")).toBe("0");
+  expect(deckDraftTotal(catalogCards(), missingOneCard)).toBe(5 + 1 + 1);
 });
 
 test("the total reflects the draft, not the cards the draft started from", () => {
-  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", 20);
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "20");
   expect(deckDraftTotal(catalogCards(), draft)).toBe(20 + 7 + 1 + 1);
 });
 
@@ -90,12 +117,12 @@ test("no problem at the starting deck", () => {
 });
 
 test("a copies value outside its range is reported, by way of protocol's deckProblem", () => {
-  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", 45);
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "45");
   expect(deckDraftProblem(catalogCards(), draft)).toContain("add1x1");
 });
 
 test("a total below the 10-100 range is reported even when every card is individually in range", () => {
-  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", 0);
+  const draft = setDeckCardCopies(createDeckDraft(catalogCards()), "add1x1", "0");
   expect(deckDraftTotal(catalogCards(), draft)).toBe(9);
   expect(deckDraftProblem(catalogCards(), draft)).toContain("10");
 });

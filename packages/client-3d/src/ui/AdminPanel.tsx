@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { SETTINGS_LIMITS, settingsProblem, type GameSettings } from "@eat.io/protocol";
 import { useGame } from "../state/GameProvider.js";
+import { selectAdminMessages } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
+import { replySinceMount } from "./replySinceMount.js";
 
 /** Docked left, like the other panels. Only a profile with `settings.edit` ever sees this
  *  (the top bar hides the Admin button otherwise), but it guards on that too (§9). */
@@ -9,6 +11,9 @@ export function AdminPanel() {
   const { state, requestSettings, saveSettings } = useGame();
   const { setAdminOpen } = useLocalState();
   const account = state.account;
+  // Whatever the last visit left in AppState. It is never used: the fields seed only from
+  // the reply to this mount's own request (fix round 1).
+  const [settingsAtMount] = useState(state.adminSettings);
 
   useEffect(() => {
     requestSettings();
@@ -22,9 +27,10 @@ export function AdminPanel() {
   const [turnSecondsText, setTurnSecondsText] = useState("");
   const [handSizeText, setHandSizeText] = useState("");
 
-  const adminSettings = state.adminSettings;
-  // Seeds the fields once, the first time this panel's mount sees the server's settings —
-  // never again, so it cannot stomp on a value the Creator is mid-typing.
+  const adminSettings = replySinceMount(state.adminSettings, settingsAtMount);
+  const { notice: adminNotice, error: adminError } = selectAdminMessages(state, "settings");
+  // Seeds the fields once, the first time this mount sees a fresh reply — never again, so
+  // it cannot stomp on a value the Admin is mid-typing.
   const seededRef = useRef(false);
   useEffect(() => {
     if (adminSettings && !seededRef.current) {
@@ -93,8 +99,8 @@ export function AdminPanel() {
 
       {!loaded && <p className="panel__note">Loading…</p>}
       {problem && <p className="panel__error">{problem}</p>}
-      {state.adminNotice && <p className="panel__note">{state.adminNotice.text}</p>}
-      {state.adminError && <p className="panel__error">{state.adminError.message}</p>}
+      {adminNotice && <p className="panel__note">{adminNotice.text}</p>}
+      {adminError && <p className="panel__error">{adminError.message}</p>}
 
       {adminSettings?.updatedBy && adminSettings.updatedAt !== null && (
         <p className="panel__note">

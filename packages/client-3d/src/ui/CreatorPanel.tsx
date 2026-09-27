@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { DECK_LIMITS } from "@eat.io/protocol";
 import { useGame } from "../state/GameProvider.js";
+import { selectAdminMessages } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { cardGlyph } from "./cardGlyph.js";
+import { replySinceMount } from "./replySinceMount.js";
 import {
   createDeckDraft,
+  deckDraftCopiesText,
   deckDraftProblem,
   deckDraftToEntries,
   deckDraftTotal,
@@ -26,6 +29,9 @@ export function CreatorPanel() {
   const { setCreatorOpen } = useLocalState();
   const account = state.account;
   const [activeTab, setActiveTab] = useState<CreatorTab>("deck");
+  // Whatever the last visit left in AppState. It is never used: the draft seeds only from
+  // the reply to this mount's own request (fix round 1).
+  const [deckAtMount] = useState(state.adminDeck);
 
   useEffect(() => {
     requestDeck();
@@ -33,10 +39,11 @@ export function CreatorPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const adminDeck = state.adminDeck;
+  const adminDeck = replySinceMount(state.adminDeck, deckAtMount);
+  const { notice: adminNotice, error: adminError } = selectAdminMessages(state, "deck");
   const [draft, setDraft] = useState<DeckCopiesDraft>({});
-  // Seeds the working draft once, the first time this panel's mount sees the server's
-  // deck — never again, so it cannot stomp on a count the Creator is mid-editing.
+  // Seeds the working draft once, the first time this mount sees a fresh reply — never
+  // again, so it cannot stomp on a count the Creator is mid-editing.
   const seededRef = useRef(false);
   useEffect(() => {
     if (adminDeck && !seededRef.current) {
@@ -77,7 +84,7 @@ export function CreatorPanel() {
         <>
           <div className="deck-editor">
             {cards.map((card) => {
-              const copies = draft[card.id] ?? card.copies;
+              const copiesText = deckDraftCopiesText(draft, card.id);
               return (
                 <div className="deck-row" key={card.id}>
                   <span className="deck-row__glyph">{cardGlyph(card)}</span>
@@ -97,10 +104,10 @@ export function CreatorPanel() {
                     <input
                       className="deck-row__input"
                       type="number"
-                      value={copies}
+                      value={copiesText}
                       aria-label={`Copies of ${card.name}`}
                       onChange={(event) =>
-                        setDraft((current) => setDeckCardCopies(current, card.id, Number(event.target.value)))
+                        setDraft((current) => setDeckCardCopies(current, card.id, event.target.value))
                       }
                     />
                     <button
@@ -119,14 +126,14 @@ export function CreatorPanel() {
 
           {loaded && (
             <p className={problem ? "deck-editor__total deck-editor__total--problem" : "deck-editor__total"}>
-              Total: {total} ({DECK_LIMITS.total.min}–{DECK_LIMITS.total.max})
+              Total: {total ?? "—"} ({DECK_LIMITS.total.min}–{DECK_LIMITS.total.max})
             </p>
           )}
 
           {!loaded && <p className="panel__note">Loading…</p>}
           {problem && <p className="panel__error">{problem}</p>}
-          {state.adminNotice && <p className="panel__note">{state.adminNotice.text}</p>}
-          {state.adminError && <p className="panel__error">{state.adminError.message}</p>}
+          {adminNotice && <p className="panel__note">{adminNotice.text}</p>}
+          {adminError && <p className="panel__error">{adminError.message}</p>}
 
           {adminDeck?.updatedBy && adminDeck.updatedAt !== null && (
             <p className="panel__note">

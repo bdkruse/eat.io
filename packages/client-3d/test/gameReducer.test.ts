@@ -2,6 +2,7 @@ import { expect, test } from "vitest";
 import type { Profile, RoomStateMessage, ServerMessage } from "@eat.io/protocol";
 import {
   initialAppState,
+  selectAdminMessages,
   selectBackToMenuStaysConnected,
   selectScreen,
   type AppState,
@@ -463,4 +464,116 @@ test("backToMenu clears the admin settings, deck, error, and notice along with e
   expect(state.adminDeck).toBeNull();
   expect(state.adminError).toBeNull();
   expect(state.adminNotice).toBeNull();
+});
+
+// ---------- fix round 1: fresh replies on reopen, and notices/errors per subject ----------
+
+test("requesting settings drops the cached settings, so a reopened panel waits for the fresh reply", () => {
+  let state = server(welcomed(), settingsMessage({ updatedBy: "Riley" }));
+  state = gameReducer(state, { kind: "settingsRequested" });
+  expect(state.adminSettings).toBeNull();
+  state = server(state, settingsMessage({ settings: { roundCount: 12, turnSeconds: 30, handSize: 6 }, updatedBy: "Sam" }));
+  expect(state.adminSettings?.settings.roundCount).toBe(12);
+  expect(state.adminSettings?.updatedBy).toBe("Sam");
+});
+
+test("requesting the deck drops the cached deck, so a reopened panel waits for the fresh reply", () => {
+  let state = server(welcomed(), deckMessage());
+  state = gameReducer(state, { kind: "deckRequested" });
+  expect(state.adminDeck).toBeNull();
+});
+
+test("opening either panel clears any notice or error left from before", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, settingsMessage());
+  state = server(state, adminErrorMessage());
+  expect(state.adminError).not.toBeNull();
+  const reopenedSettings = gameReducer(state, { kind: "settingsRequested" });
+  expect(reopenedSettings.adminNotice).toBeNull();
+  expect(reopenedSettings.adminError).toBeNull();
+
+  let deckState = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  deckState = server(deckState, deckMessage());
+  expect(deckState.adminNotice).not.toBeNull();
+  const reopenedDeck = gameReducer(deckState, { kind: "deckRequested" });
+  expect(reopenedDeck.adminNotice).toBeNull();
+  expect(reopenedDeck.adminError).toBeNull();
+});
+
+test("starting a save clears the previous notice and error", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, adminErrorMessage());
+  state = gameReducer(state, { kind: "settingsSaveStarted" });
+  expect(state.adminError).toBeNull();
+
+  state = server(state, settingsMessage());
+  expect(state.adminNotice).not.toBeNull();
+  state = gameReducer(state, { kind: "deckSaveStarted" });
+  expect(state.adminNotice).toBeNull();
+});
+
+test("a successful save clears an earlier error", () => {
+  let state = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  state = server(state, adminErrorMessage({ code: "INVALID_DECK", message: "The deck must total between 10 and 100 cards, not 5." }));
+  // A save answer that arrives while the error is still up (no new saveStarted in between).
+  state = { ...state, savingDeck: true };
+  state = server(state, deckMessage());
+  expect(state.adminNotice?.text).toBe("Deck saved.");
+  expect(state.adminError).toBeNull();
+});
+
+test("an error clears an earlier notice", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, settingsMessage());
+  expect(state.adminNotice?.text).toBe("Settings saved.");
+  state = server(state, adminErrorMessage());
+  expect(state.adminNotice).toBeNull();
+  expect(state.adminError).not.toBeNull();
+});
+
+test("a settings notice or error never shows in the creator panel", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, settingsMessage());
+  expect(selectAdminMessages(state, "settings").notice?.text).toBe("Settings saved.");
+  expect(selectAdminMessages(state, "deck")).toEqual({ notice: null, error: null });
+
+  state = gameReducer(state, { kind: "settingsSaveStarted" });
+  state = server(state, adminErrorMessage());
+  expect(selectAdminMessages(state, "settings").error?.code).toBe("INVALID_SETTINGS");
+  expect(selectAdminMessages(state, "deck")).toEqual({ notice: null, error: null });
+});
+
+test("a deck notice or error never shows in the admin panel", () => {
+  let state = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  state = server(state, deckMessage());
+  expect(selectAdminMessages(state, "deck").notice?.text).toBe("Deck saved.");
+  expect(selectAdminMessages(state, "settings")).toEqual({ notice: null, error: null });
+
+  state = gameReducer(state, { kind: "deckSaveStarted" });
+  state = server(state, adminErrorMessage({ code: "INVALID_DECK", message: "The deck must total between 10 and 100 cards, not 5." }));
+  expect(selectAdminMessages(state, "deck").error?.code).toBe("INVALID_DECK");
+  expect(selectAdminMessages(state, "settings")).toEqual({ notice: null, error: null });
+});
+
+test("a FORBIDDEN error belongs to the save in flight, or else to the panel that last asked", () => {
+  const duringDeckSave = server(
+    gameReducer(welcomed(), { kind: "deckSaveStarted" }),
+    adminErrorMessage({ code: "FORBIDDEN", message: "You cannot edit the deck." }),
+  );
+  expect(selectAdminMessages(duringDeckSave, "deck").error?.code).toBe("FORBIDDEN");
+  expect(selectAdminMessages(duringDeckSave, "settings").error).toBeNull();
+
+  const afterDeckRequest = server(
+    gameReducer(welcomed(), { kind: "deckRequested" }),
+    adminErrorMessage({ code: "FORBIDDEN", message: "You cannot edit the deck." }),
+  );
+  expect(selectAdminMessages(afterDeckRequest, "deck").error?.code).toBe("FORBIDDEN");
+});
+
+test("an error for one subject leaves the other subject's save in flight", () => {
+  let state = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  state = gameReducer(state, { kind: "settingsSaveStarted" });
+  state = server(state, adminErrorMessage());
+  expect(state.savingSettings).toBe(false);
+  expect(state.savingDeck).toBe(true);
 });

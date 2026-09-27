@@ -1,6 +1,6 @@
-import type { ServerMessage } from "@eat.io/protocol";
+import type { AdminErrorCode, ServerMessage } from "@eat.io/protocol";
 import type { ConnectionState } from "../connection/connectionState.js";
-import { initialAppState, type AppState } from "./gameState.js";
+import { initialAppState, type AdminSubject, type AppState } from "./gameState.js";
 
 export type Action =
   | { kind: "server"; msg: ServerMessage }
@@ -13,8 +13,13 @@ export type Action =
   | { kind: "dismissRejection" }
   | { kind: "dismissAccountError" }
   | { kind: "accountAttemptStarted" }
+  | { kind: "settingsRequested" }
+  | { kind: "deckRequested" }
   | { kind: "settingsSaveStarted" }
   | { kind: "deckSaveStarted" };
+
+/** Opening an admin panel or starting a save starts with nothing said yet (fix round 1). */
+const CLEARED_ADMIN_MESSAGES = { adminNotice: null, adminError: null } as const;
 
 /** Everything a new room must not inherit from the previous one (§2.5). */
 const CLEARED_FOR_NEW_ROOM = {
@@ -57,10 +62,16 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...state, accountError: null };
     case "accountAttemptStarted":
       return { ...state, accountPending: true };
+    case "settingsRequested":
+      // Opening the admin panel: drop the cached settings so the panel seeds from this
+      // request's reply, and drop anything said about an earlier visit (fix round 1).
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, adminSettings: null, lastAdminSubject: "settings" };
+    case "deckRequested":
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, adminDeck: null, lastAdminSubject: "deck" };
     case "settingsSaveStarted":
-      return { ...state, savingSettings: true };
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, savingSettings: true, lastAdminSubject: "settings" };
     case "deckSaveStarted":
-      return { ...state, savingDeck: true };
+      return { ...state, ...CLEARED_ADMIN_MESSAGES, savingDeck: true, lastAdminSubject: "deck" };
     default: {
       const never: never = action;
       return never;
@@ -183,44 +194,68 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         },
       };
 
-    case "settings":
+    case "settings": {
       // A `settings` message answers both a plain `settingsRequest` (opening the panel)
       // and a `settingsSave` — only the latter should raise a notice (§9).
-      return {
+      const withSettings: AppState = {
         ...state,
         adminSettings: { settings: msg.settings, updatedAt: msg.updatedAt, updatedBy: msg.updatedBy },
         savingSettings: false,
-        adminNotice: state.savingSettings
-          ? { text: "Settings saved.", seq: (state.adminNotice?.seq ?? 0) + 1 }
-          : state.adminNotice,
       };
+      return state.savingSettings ? withAdminNotice(withSettings, "settings", "Settings saved.") : withSettings;
+    }
 
-    case "deck":
+    case "deck": {
       // Same reasoning as `settings`, above.
-      return {
+      const withDeck: AppState = {
         ...state,
         adminDeck: { cards: msg.cards, total: msg.total, updatedAt: msg.updatedAt, updatedBy: msg.updatedBy },
         savingDeck: false,
-        adminNotice: state.savingDeck
-          ? { text: "Deck saved.", seq: (state.adminNotice?.seq ?? 0) + 1 }
-          : state.adminNotice,
       };
+      return state.savingDeck ? withAdminNotice(withDeck, "deck", "Deck saved.") : withDeck;
+    }
 
-    case "adminError":
+    case "adminError": {
+      const subject = adminErrorSubject(state, msg.code);
+      const adminMessageSeq = state.adminMessageSeq + 1;
       return {
         ...state,
-        savingSettings: false,
-        savingDeck: false,
-        adminError: {
-          code: msg.code,
-          message: msg.message,
-          seq: (state.adminError?.seq ?? 0) + 1,
-        },
+        // Only the failed subject's save is over; a save of the other subject still waits.
+        savingSettings: subject === "settings" ? false : state.savingSettings,
+        savingDeck: subject === "deck" ? false : state.savingDeck,
+        adminMessageSeq,
+        adminNotice: null,
+        adminError: { subject, code: msg.code, message: msg.message, seq: adminMessageSeq },
       };
+    }
 
     default: {
       const never: never = msg;
       return never;
     }
   }
+}
+
+/** A save succeeded: say so for that subject, and drop any error the notice supersedes. */
+function withAdminNotice(state: AppState, subject: AdminSubject, text: string): AppState {
+  const adminMessageSeq = state.adminMessageSeq + 1;
+  return {
+    ...state,
+    adminMessageSeq,
+    adminError: null,
+    adminNotice: { subject, text, seq: adminMessageSeq },
+  };
+}
+
+/**
+ * Which panel an `adminError` belongs to. INVALID_SETTINGS and INVALID_DECK name it
+ * outright. FORBIDDEN does not, so it goes to the one save in flight, or else to the
+ * subject last requested or saved.
+ */
+function adminErrorSubject(state: AppState, code: AdminErrorCode): AdminSubject {
+  if (code === "INVALID_SETTINGS") return "settings";
+  if (code === "INVALID_DECK") return "deck";
+  if (state.savingSettings && !state.savingDeck) return "settings";
+  if (state.savingDeck && !state.savingSettings) return "deck";
+  return state.lastAdminSubject ?? "settings";
 }

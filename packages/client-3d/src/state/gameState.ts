@@ -50,7 +50,12 @@ export interface AdminDeckState {
   updatedBy: string | null;
 }
 
+/** What an admin notice or error is about, so each panel shows only its own: "settings"
+ *  belongs to the admin panel, "deck" to the creator panel's deck tab (fix round 1). */
+export type AdminSubject = "settings" | "deck";
+
 export interface AdminErrorState {
+  subject: AdminSubject;
   code: AdminErrorCode;
   message: string;
   /** Monotonic, so the toast can re-trigger on a repeat of the same code without a clock. */
@@ -58,6 +63,7 @@ export interface AdminErrorState {
 }
 
 export interface AdminNotice {
+  subject: AdminSubject;
   text: string;
   /** Monotonic, so a repeat of the same notice can re-trigger without a clock. */
   seq: number;
@@ -87,12 +93,22 @@ export interface AppState {
    * identity is set but account is still null even for a login or a token resume).
    */
   accountPending: boolean;
-  /** The admin panel's settings, or null before the first `settings` message arrives. */
+  /** The admin panel's settings, or null until a `settings` message answers the latest
+   *  `settingsRequest` — each request drops the cached copy so a reopened panel never
+   *  seeds from stale values (fix round 1). */
   adminSettings: AdminSettingsState | null;
-  /** The creator panel's deck, or null before the first `deck` message arrives. */
+  /** The creator panel's deck, with the same reset-on-request rule as `adminSettings`. */
   adminDeck: AdminDeckState | null;
+  /** At most one of `adminError` and `adminNotice` is set: each clears the other, and
+   *  opening a panel or starting a save clears both. Read them through
+   *  `selectAdminMessages` so a panel sees only its own subject. */
   adminError: AdminErrorState | null;
   adminNotice: AdminNotice | null;
+  /** Shared by `adminError` and `adminNotice`, so their `seq` keeps climbing after a clear. */
+  adminMessageSeq: number;
+  /** The subject last requested or saved: what a FORBIDDEN `adminError`, which names no
+   *  subject of its own, is blamed on when no save is in flight. */
+  lastAdminSubject: AdminSubject | null;
   /** True from `saveSettings` until the answering `settings` or `adminError` arrives —
    *  the same shape as `accountPending` above, and for the same reason: it is what tells
    *  the reducer a `settings` message is a save's answer rather than the response to a
@@ -120,6 +136,8 @@ export const initialAppState: AppState = {
   adminDeck: null,
   adminError: null,
   adminNotice: null,
+  adminMessageSeq: 0,
+  lastAdminSubject: null,
   savingSettings: false,
   savingDeck: false,
 };
@@ -143,6 +161,19 @@ export function selectScreen(state: AppState): Screen {
  */
 export function selectBackToMenuStaysConnected(state: AppState): boolean {
   return state.account !== null;
+}
+
+/** The notice and error one panel may show: only those about its own subject, so a
+ *  "Settings saved." never appears in the creator panel, nor a deck error in the admin
+ *  panel (fix round 1). */
+export function selectAdminMessages(
+  state: AppState,
+  subject: AdminSubject,
+): { notice: AdminNotice | null; error: AdminErrorState | null } {
+  return {
+    notice: state.adminNotice?.subject === subject ? state.adminNotice : null,
+    error: state.adminError?.subject === subject ? state.adminError : null,
+  };
 }
 
 /** Explicit from the server's submitted flags — never inferred from a turn index (§2.8.10). */
