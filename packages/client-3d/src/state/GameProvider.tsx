@@ -11,6 +11,7 @@ import {
 import type { ClientMessage, ServerMessage } from "@eat.io/protocol";
 import type { Appearance } from "../appearance/appearance.js";
 import { resumeServerUrl } from "../config.js";
+import { wakeServer } from "../connection/wakeServer.js";
 import type { ConnectionState } from "../connection/connectionState.js";
 import { useConnection } from "../connection/useConnection.js";
 import { gameReducer } from "./gameReducer.js";
@@ -125,6 +126,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // touch anything, and fall back to the menu as usual if that fails (§11). Marked as a
   // pending account attempt so the guest-look effect does not fire mid-resume and
   // overwrite the account's real saved look the instant `welcome` arrives (fix round 1).
+  // Start a sleeping server while the player is still reading the menu, so it is
+  // usually awake by the time they press Connect.
+  useEffect(() => {
+    wakeServer(resumeServerUrl(loadServerUrl()));
+  }, []);
+
   useEffect(() => {
     const loginToken = loadLoginToken();
     if (!loginToken) return;

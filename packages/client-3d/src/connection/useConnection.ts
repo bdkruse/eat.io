@@ -7,12 +7,14 @@ import {
 } from "@eat.io/protocol";
 import { buildHello, nextLoginToken } from "./hello.js";
 import {
-  backoffMs,
   connectionReducer,
   initialConnectionState,
+  retryDelayMs,
+  WAKE_WINDOW_MS,
   type ConnectionEvent,
   type ConnectionState,
 } from "./connectionState.js";
+import { wakeServer } from "./wakeServer.js";
 
 export interface UseConnection {
   connection: ConnectionState;
@@ -36,6 +38,8 @@ export function useConnection(
   // logout is reflected in the very next reconnect's hello (final review, item 1).
   const loginTokenRef = useRef<string | null>(null);
   const wantOpenRef = useRef(false);
+  // When this connect() began, to tell "the server is still waking up" from "it is down".
+  const firstAttemptAtRef = useRef(0);
   const stateRef = useRef<ConnectionState>(initialConnectionState);
 
   // Callbacks live in refs so the socket effect never re-subscribes on a re-render.
@@ -58,6 +62,8 @@ export function useConnection(
     if (!target) return;
 
     applyEvent({ type: "connect" });
+    // Every attempt nudges a host that may have put the server to sleep.
+    wakeServer(target.url);
     const socket = new WebSocket(target.url);
     socketRef.current = socket;
 
@@ -92,12 +98,17 @@ export function useConnection(
     socket.addEventListener("close", () => {
       socketRef.current = null;
       if (!wantOpenRef.current) {
-        applyEvent({ type: "closed", hadSession: false });
+        // A deliberate disconnect: never report it as a failure or retry it.
+        applyEvent({ type: "reset" });
         return;
       }
-      applyEvent({ type: "closed", hadSession: sessionRef.current !== null });
-      const delay = backoffMs(stateRef.current.attempt);
-      retryRef.current = setTimeout(openSocket, delay);
+      applyEvent({
+        type: "closed",
+        hadSession: sessionRef.current !== null,
+        withinWakeWindow: Date.now() - firstAttemptAtRef.current < WAKE_WINDOW_MS,
+      });
+      const delay = retryDelayMs(stateRef.current);
+      if (delay !== null) retryRef.current = setTimeout(openSocket, delay);
     });
 
     socket.addEventListener("error", () => {
@@ -110,6 +121,9 @@ export function useConnection(
     (url: string, name: string, loginToken?: string) => {
       targetRef.current = { url, name };
       wantOpenRef.current = true;
+      firstAttemptAtRef.current = Date.now();
+      if (retryRef.current) clearTimeout(retryRef.current);
+      retryRef.current = null;
       sessionRef.current = null; // a fresh connect is a new session, not a reconnect
       loginTokenRef.current = loginToken ?? null;
       openSocket();

@@ -41,7 +41,8 @@ export function MenuPanel({
 
   const connected = state.connection.phase === "connected" && state.identity !== null;
   // A second attempt cannot start before the first resolves (§11 rulings).
-  const busy = state.accountPending || state.connection.phase === "connecting";
+  const waking = state.connection.phase === "waking";
+  const busy = state.accountPending || state.connection.phase === "connecting" || waking;
   const ready = state.name.trim().length > 0 && serverUrl.trim().length > 0;
   const isGuestAccount = connected && state.account === null;
 
@@ -202,6 +203,7 @@ export function MenuPanel({
       </button>
 
       {state.accountError && <p className="panel__error">{state.accountError.message}</p>}
+      {waking && <p className="panel__note">Waking the server… this can take up to 20 seconds.</p>}
       {state.connection.error && <p className="panel__error">{state.connection.error}</p>}
 
       <p className="panel__explainer">

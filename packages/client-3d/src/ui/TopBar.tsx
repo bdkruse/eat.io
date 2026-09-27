@@ -20,7 +20,16 @@ export function TopBar({
   const { state } = useGame();
   const { detail, setDetail, setProfileOpen } = useLocalState();
   const live = state.connection.phase === "connected";
-  const label = live ? "Connected" : state.connection.phase === "reconnecting" ? "Reconnecting" : "Offline";
+  const phase = state.connection.phase;
+  const label = live
+    ? "Connected"
+    : phase === "reconnecting"
+      ? "Reconnecting"
+      : phase === "waking"
+        ? "Waking server"
+        : phase === "connecting"
+          ? "Connecting"
+          : "Offline";
   // Hidden during a game — there is no room for it, and nothing to do with it there.
   const showProfileButton = selectScreen(state) !== "game";
   const account = state.account;
