@@ -4,11 +4,18 @@
 import { WebSocket } from "ws";
 
 const PORT = process.env.PORT ?? 8000;
-const PROTOCOL_VERSION = 2;
+const PROTOCOL_VERSION = 4;
 
 const pad = (text, width) => String(text).padEnd(width);
 const describeCard = (card) =>
-  `${card.name} (${card.action} ${card.amount}, ${card.targets} target${card.targets > 1 ? "s" : ""})`;
+  `${card.name} (${card.action} ${card.amount}, ${card.targets} target${card.targets === 1 ? "" : "s"})`;
+
+/** What the front tray is worth after the card. Table-wide cards count as their add. */
+function frontAfter(card, front) {
+  if (card.action === "multiply") return front * card.amount;
+  if (card.action === "extraServings") return front;
+  return front + card.amount;
+}
 
 /** Pick the card that makes the front tray worth the most, and target from the front. */
 function chooseMove(view) {
@@ -17,7 +24,7 @@ function chooseMove(view) {
   for (const card of view.you.hand) {
     if (card.targets > table.length) continue;
     const front = table[0].value;
-    const after = card.action === "add" ? front + card.amount : front * card.amount;
+    const after = frontAfter(card, front);
     if (!best || after > best.after) {
       best = { card, after, targetTrayIds: table.slice(0, card.targets).map((t) => t.id) };
     }
