@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { SHOP_ITEM_KINDS, SHOP_ITEMS, type ShopItemKind, type ShopItemView } from "@eat.io/protocol";
 import { useGame } from "../state/GameProvider.js";
-import { selectBuyingItemId } from "../state/gameState.js";
+import { selectBuyingItemId, selectLunchMoney } from "../state/gameState.js";
 import { useLocalState } from "../state/LocalState.js";
 import { CoinIcon } from "./icons.js";
 import { replySinceMount } from "./replySinceMount.js";
+import { shopNoticeText } from "./shopNotice.js";
 
 const SHOP_KIND_LABELS: Record<ShopItemKind, string> = {
   extra: "Extras",
@@ -45,13 +46,20 @@ export function ShopPanel() {
   if (!account) return null;
 
   const shop = state.shop;
-  const balance = shop?.balance ?? account.lunchMoney;
+  // The profile's balance, the same one the top bar shows; never the shop reply's, which a
+  // finished game does not refresh (fix round 1). Account is set here, so it is a number.
+  const balance = selectLunchMoney(state) ?? 0;
   const items = shop?.items ?? [];
   const selectedItem = items.find((item) => item.id === shopSelectedItemId) ?? null;
   const buying = selectBuyingItemId(state) !== null;
-  const purchase = replySinceMount(state.shopPurchase, purchaseAtMount);
-  const purchasedItemName = purchase ? SHOP_ITEMS.find((item) => item.id === purchase.itemId)?.name : null;
   const accountError = state.accountError;
+  const buyNotice = shopNoticeText({
+    selectedItemId: shopSelectedItemId,
+    purchaseSinceMount: replySinceMount(state.shopPurchase, purchaseAtMount),
+    unansweredBuyItemId: state.unansweredBuyItemId,
+    buying,
+    accountErrorShown: accountError !== null,
+  });
 
   const shortfall = selectedItem ? selectedItem.price - balance : 0;
   const canBuy = selectedItem !== null && !selectedItem.owned && shortfall <= 0 && !buying;
@@ -87,9 +95,7 @@ export function ShopPanel() {
       {selectedItem && !selectedItem.owned && shortfall > 0 && (
         <p className="panel__note">You need {shortfall} more Lunch Money.</p>
       )}
-      {purchasedItemName && !buying && !accountError && (
-        <p className="panel__note">You bought {purchasedItemName}, and your kid is wearing it.</p>
-      )}
+      {buyNotice && <p className="panel__note">{buyNotice}</p>}
       {accountError && <p className="panel__error">{accountError.message}</p>}
 
       {!shop && <p className="panel__note">Loading…</p>}

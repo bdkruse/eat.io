@@ -5,6 +5,8 @@ import {
   selectAdminMessages,
   selectBuyingItemId,
   selectBackToMenuStaysConnected,
+  selectLunchMoney,
+  selectLunchMoneyEarned,
   selectScreen,
   type AppState,
 } from "../src/state/gameState.js";
@@ -593,6 +595,12 @@ const shopMessage = (over: Partial<Extract<ServerMessage, { type: "shop" }>> = {
   ...over,
 });
 
+/** The server's answer to a successful buy: the same list, with the bought item owned. */
+const shopMessageOwning = (itemId: string, over: Partial<Extract<ServerMessage, { type: "shop" }>> = {}) => {
+  const message = shopMessage(over);
+  return { ...message, items: message.items.map((item) => (item.id === itemId ? { ...item, owned: true } : item)) };
+};
+
 const shopConfigMessage = (over: Partial<Extract<ServerMessage, { type: "shopConfig" }>> = {}) => ({
   type: "shopConfig" as const,
   items: [
@@ -637,7 +645,7 @@ test("shopBuyStarted marks the item being bought and clears a leftover account e
 
 test("a shop message answering a buy records the purchase, re-triggering via seq on the next one", () => {
   let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
-  state = server(state, shopMessage({ balance: 20 }));
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
   expect(selectBuyingItemId(state)).toBeNull();
   expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
   expect(state.shop?.balance).toBe(20);
@@ -722,13 +730,13 @@ test("a FORBIDDEN error during a shop save belongs to the shop tab", () => {
   expect(state.savingShopConfig).toBe(false);
 });
 
-test("the Lunch Money earned is the difference between the profile at the game's start and the one after it", () => {
+test("the Lunch Money earned is your score in the finished game, for a logged-in player", () => {
   let state = loggedIn({ lunchMoney: 100 });
   state = server(state, room());
-  expect(state.lunchMoneyEarned).toBeNull();
+  expect(selectLunchMoneyEarned(state)).toBeNull();
   state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
-  expect(state.lunchMoneyEarned).toBe(12);
+  expect(selectLunchMoneyEarned(state)).toBe(12);
 });
 
 test("a later profile (a buy on the game-over screen) does not change the Lunch Money earned", () => {
@@ -737,13 +745,13 @@ test("a later profile (a buy on the game-over screen) does not change the Lunch 
   state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 12 }) });
-  expect(state.lunchMoneyEarned).toBe(12);
+  expect(selectLunchMoneyEarned(state)).toBe(12);
 });
 
 test("a guest earns no Lunch Money, so there is nothing to show", () => {
   let state = server(welcomed(), room());
   state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
-  expect(state.lunchMoneyEarned).toBeNull();
+  expect(selectLunchMoneyEarned(state)).toBeNull();
 });
 
 test("the next game starts with no Lunch Money earned yet", () => {
@@ -752,11 +760,11 @@ test("the next game starts with no Lunch Money earned yet", () => {
   state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 112 }) });
   state = gameReducer(state, { kind: "playAgain" });
-  expect(state.lunchMoneyEarned).toBeNull();
+  expect(selectLunchMoneyEarned(state)).toBeNull();
   state = server(state, room());
   state = server(state, { type: "gameOver", result: { kind: "loss", scores: { a: 3, b: 7 } } });
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 115 }) });
-  expect(state.lunchMoneyEarned).toBe(3);
+  expect(selectLunchMoneyEarned(state)).toBe(3);
 });
 
 test("the answer to a shop request still in flight when Buy is pressed is not the purchase", () => {
@@ -766,7 +774,7 @@ test("the answer to a shop request still in flight when Buy is pressed is not th
   state = server(state, shopMessage({ balance: 120 }));
   expect(state.shopPurchase).toBeNull();
   expect(selectBuyingItemId(state)).toBe("extra.crown");
-  state = server(state, shopMessage({ balance: 20 }));
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
   expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
   expect(selectBuyingItemId(state)).toBeNull();
 });
@@ -774,9 +782,9 @@ test("the answer to a shop request still in flight when Buy is pressed is not th
 test("a shop request sent after Buy is answered after the purchase, and is not a second purchase", () => {
   let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
   state = gameReducer(state, { kind: "shopRequested" });
-  state = server(state, shopMessage({ balance: 20 }));
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
   expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
-  state = server(state, shopMessage({ balance: 20 }));
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
   expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
 });
 
@@ -800,4 +808,97 @@ test("a shop request or buy made while disconnected is never sent, so nothing wa
   state = gameReducer(state, { kind: "shopRequested" });
   state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
   expect(state.pendingShopReplies).toEqual([]);
+});
+
+// ---------- Task 11, fix round 1: unanswered buys, "+N", and the one balance ----------
+
+test("an unanswered buy followed by a plain shop reply equips nothing and releases Buying…", () => {
+  // The buy's handler threw on the server, so it sent nothing. The shop reopens and asks.
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopRequested" });
+  state = server(state, shopMessage());
+  expect(state.shopPurchase).toBeNull();
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.pendingShopReplies).toEqual([]);
+  expect(state.unansweredBuyItemId).toBe("extra.crown");
+});
+
+test("after an unanswered buy, the next buy's answer is that buy's purchase", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopRequested" });
+  state = server(state, shopMessage());
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.pendingShopReplies).toEqual([]);
+  expect(state.unansweredBuyItemId).toBeNull();
+});
+
+test("an unanswered shop request ahead of a buy does not swallow the buy's answer", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopRequested" });
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  // The request's answer never comes; the buy's does.
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
+  expect(state.shopPurchase).toEqual({ itemId: "extra.crown", seq: 1 });
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.pendingShopReplies).toEqual([]);
+});
+
+test("a buy with no answer at all is released when it times out", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopBuyTimedOut", itemId: "extra.crown" });
+  expect(selectBuyingItemId(state)).toBeNull();
+  expect(state.unansweredBuyItemId).toBe("extra.crown");
+  // A late answer after that is not a purchase: nothing is waiting for it.
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
+  expect(state.shopPurchase).toBeNull();
+});
+
+test("a timeout for a buy that was already answered changes nothing", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = server(state, shopMessageOwning("extra.crown", { balance: 20 }));
+  const afterPurchase = gameReducer(state, { kind: "shopBuyTimedOut", itemId: "extra.crown" });
+  expect(afterPurchase).toBe(state);
+});
+
+test("starting a new buy clears the note about an unanswered one", () => {
+  let state = gameReducer(loggedIn(), { kind: "shopBuyStarted", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopBuyTimedOut", itemId: "extra.crown" });
+  state = gameReducer(state, { kind: "shopBuyStarted", itemId: "extra.crown" });
+  expect(state.unansweredBuyItemId).toBeNull();
+});
+
+test("'+N' is right when a buy's answer lands after the room has started", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room());
+  // The buy was answered just after the first roomState: 100 − 100.
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 0 }) });
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 12 }) });
+  expect(selectLunchMoneyEarned(state)).toBe(12);
+});
+
+test("'+N' is right when the post-game profile is lost and a buy follows on the game-over screen", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room());
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  // The profile with 112 was lost to a reconnect. A buy for 5 then answers with 107.
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 107 }) });
+  expect(selectLunchMoneyEarned(state)).toBe(12);
+});
+
+test("'+N' reads your own seat's score", () => {
+  let state = loggedIn();
+  state = server(state, room({ you: { ...room().you, seat: "b" }, opponent: { ...room().opponent, seat: "a" } }));
+  state = server(state, { type: "gameOver", result: { kind: "loss", scores: { a: 12, b: 7 } } });
+  expect(selectLunchMoneyEarned(state)).toBe(7);
+});
+
+test("the balance is the profile's, so a profile after the last shop reply is what shows", () => {
+  let state = server(loggedIn({ lunchMoney: 120 }), shopMessage({ balance: 120 }));
+  // A finished game pushes a new profile; the shop reply is not refreshed.
+  state = server(state, { type: "profile", profile: profile({ lunchMoney: 250 }) });
+  expect(selectLunchMoney(state)).toBe(250);
+  expect(selectLunchMoney(welcomed())).toBeNull();
 });

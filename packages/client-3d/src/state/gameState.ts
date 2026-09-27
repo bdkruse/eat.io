@@ -52,7 +52,9 @@ export interface AdminDeckState {
 }
 
 /** The shop as the server last sent it: the available items with the Creator's prices,
- *  whether this player owns each, and the balance (§13.4). */
+ *  whether this player owns each, and the balance (§13.4). The balance is kept as sent but
+ *  never shown: a finished game refreshes the profile, not this, so the UI reads Lunch
+ *  Money from the profile alone (`selectLunchMoney`). */
 export interface ShopState {
   items: ShopItemView[];
   balance: number;
@@ -65,8 +67,10 @@ export interface AdminShopConfigState {
   updatedBy: string | null;
 }
 
-/** A `shop` message the client is waiting for, in the order it asked: the server answers
- *  in that order, so the head of the queue says what the next `shop` message is for. */
+/** A `shop` message the client is waiting for, in the order it asked. The server answers
+ *  in that order, but it may not answer at all (a handler that throws sends nothing), so a
+ *  `shop` message is matched by what it shows: it answers a pending buy only when it shows
+ *  that item owned, and otherwise the oldest pending request (fix round 1). */
 export type PendingShopReply = { kind: "request" } | { kind: "buy"; itemId: string };
 
 /** A buy the server confirmed. A new object (and seq) for each, so the look can be
@@ -151,16 +155,15 @@ export interface AppState {
   shop: ShopState | null;
   /** Every `shopRequest` and `shopBuy` not yet answered, oldest first. Without it, the
    *  answer to a request still in flight when Buy is pressed would pass for the purchase.
-   *  A buy leaves it on its `shop` answer (bought) or its `accountError` (refused); the
-   *  whole queue goes when the connection drops. */
+   *  A buy leaves it on its `shop` answer (bought), its `accountError` (refused), a later
+   *  request's answer or a timeout (never answered); the whole queue goes when the
+   *  connection drops. */
   pendingShopReplies: PendingShopReply[];
   /** The latest confirmed buy. */
   shopPurchase: ShopPurchase | null;
-  /** The account's Lunch Money when the current room started, or null for a guest. */
-  lunchMoneyAtGameStart: number | null;
-  /** How much Lunch Money the finished game earned: the first profile after `gameOver`,
-   *  less `lunchMoneyAtGameStart` (§13.6). Null until that profile arrives, and for a guest. */
-  lunchMoneyEarned: number | null;
+  /** The item of the last buy that got no answer (the server sent nothing for it), so the
+   *  shop can say so. Cleared by the next buy, the next shop request, or a purchase. */
+  unansweredBuyItemId: string | null;
 }
 
 export const initialAppState: AppState = {
@@ -190,9 +193,12 @@ export const initialAppState: AppState = {
   shop: null,
   pendingShopReplies: [],
   shopPurchase: null,
-  lunchMoneyAtGameStart: null,
-  lunchMoneyEarned: null,
+  unansweredBuyItemId: null,
 };
+
+/** How long a buy may wait for its answer before Buy is released again. The server answers
+ *  in milliseconds; this only matters when it sends nothing at all. */
+export const BUY_ANSWER_TIMEOUT_MS = 15_000;
 
 export type Screen = "connect" | "queue" | "game" | "gameOver";
 
@@ -234,6 +240,31 @@ export function selectBuyingItemId(state: AppState): string | null {
     if (pendingReply.kind === "buy") return pendingReply.itemId;
   }
   return null;
+}
+
+/** The logged-in player's Lunch Money, or null for a guest. The one balance every panel
+ *  shows, so the shop and the top bar never disagree (fix round 1). */
+export function selectLunchMoney(state: AppState): number | null {
+  return state.account?.lunchMoney ?? null;
+}
+
+/**
+ * The Lunch Money a finished game earned: your own final score, which is exactly what the
+ * server credits a logged-in player (§13.6). Null for a guest and before the game is over.
+ * Taken from the result rather than from balance changes, so a buy landing mid-game or a
+ * post-game profile lost to a reconnect cannot skew it (fix round 1).
+ */
+export function lunchMoneyEarnedIn(
+  account: Profile | null,
+  result: Result | null,
+  room: RoomStateMessage | null,
+): number | null {
+  if (account === null || result === null || room === null) return null;
+  return result.scores[room.you.seat] ?? null;
+}
+
+export function selectLunchMoneyEarned(state: AppState): number | null {
+  return lunchMoneyEarnedIn(state.account, state.result, state.room);
 }
 
 /** Explicit from the server's submitted flags — never inferred from a turn index (§2.8.10). */

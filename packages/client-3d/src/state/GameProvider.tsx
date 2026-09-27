@@ -15,7 +15,13 @@ import { wakeServer } from "../connection/wakeServer.js";
 import type { ConnectionState } from "../connection/connectionState.js";
 import { useConnection } from "../connection/useConnection.js";
 import { gameReducer } from "./gameReducer.js";
-import { initialAppState, selectBackToMenuStaysConnected, type AppState } from "./gameState.js";
+import {
+  BUY_ANSWER_TIMEOUT_MS,
+  initialAppState,
+  selectBackToMenuStaysConnected,
+  selectBuyingItemId,
+  type AppState,
+} from "./gameState.js";
 import { clearLoginToken, loadLoginToken, loadServerUrl, saveLoginToken, saveServerUrl } from "./loginStorage.js";
 import { createPendingAccountMessageHolder } from "./pendingAccountMessage.js";
 
@@ -90,6 +96,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
     // left behind (final review, item 3).
     if (msg.type === "accountLoggedOut") disconnectRef.current();
   }, []);
+
+  // A buy the server never answers (its handler threw) must not leave Buy saying
+  // "Buying…" until a reconnect. Each new buy restarts the clock (fix round 1).
+  const buyingItemId = selectBuyingItemId(state);
+  useEffect(() => {
+    if (buyingItemId === null) return;
+    const buyTimeout = setTimeout(
+      () => dispatch({ kind: "shopBuyTimedOut", itemId: buyingItemId }),
+      BUY_ANSWER_TIMEOUT_MS,
+    );
+    return () => clearTimeout(buyTimeout);
+  }, [buyingItemId]);
 
   const handleConnectionChange = useCallback((next: ConnectionState) => {
     dispatch({ kind: "connection", state: next });

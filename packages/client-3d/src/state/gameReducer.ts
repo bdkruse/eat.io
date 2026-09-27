@@ -19,6 +19,7 @@ export type Action =
   | { kind: "deckSaveStarted" }
   | { kind: "shopRequested" }
   | { kind: "shopBuyStarted"; itemId: string }
+  | { kind: "shopBuyTimedOut"; itemId: string }
   | { kind: "shopConfigRequested" }
   | { kind: "shopConfigSaveStarted" };
 
@@ -35,8 +36,6 @@ const CLEARED_FOR_NEW_ROOM = {
   result: null,
   rejection: null,
   opponentDropped: null,
-  lunchMoneyAtGameStart: null,
-  lunchMoneyEarned: null,
 } as const;
 
 export function gameReducer(state: AppState, action: Action): AppState {
@@ -89,13 +88,31 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...state, ...CLEARED_ADMIN_MESSAGES, savingDeck: true, lastAdminSubject: "deck" };
     case "shopRequested":
       // Opening the shop: an account error left from another panel is not about it.
-      return { ...state, accountError: null, pendingShopReplies: withPendingShopReply(state, { kind: "request" }) };
+      return {
+        ...state,
+        accountError: null,
+        unansweredBuyItemId: null,
+        pendingShopReplies: withPendingShopReply(state, { kind: "request" }),
+      };
     case "shopBuyStarted":
       return {
         ...state,
         accountError: null,
+        unansweredBuyItemId: null,
         pendingShopReplies: withPendingShopReply(state, { kind: "buy", itemId: action.itemId }),
       };
+    case "shopBuyTimedOut": {
+      // No answer came at all. Release Buy; a late answer then finds nothing waiting for it.
+      const timedOutBuyIndex = state.pendingShopReplies.findIndex(
+        (pendingReply) => pendingReply.kind === "buy" && pendingReply.itemId === action.itemId,
+      );
+      if (timedOutBuyIndex === -1) return state;
+      return {
+        ...state,
+        pendingShopReplies: state.pendingShopReplies.filter((_, replyIndex) => replyIndex !== timedOutBuyIndex),
+        unansweredBuyItemId: action.itemId,
+      };
+    }
     case "shopConfigRequested":
       return { ...state, ...CLEARED_ADMIN_MESSAGES, adminShopConfig: null, lastAdminSubject: "shopConfig" };
     case "shopConfigSaveStarted":
@@ -156,16 +173,7 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         room: msg,
         queued: false,
         privateCode: null,
-        ...(isNewRoom
-          ? {
-              result: null,
-              rejection: null,
-              opponentDropped: null,
-              // The baseline the game-over screen's "+N Lunch Money" is measured from.
-              lunchMoneyAtGameStart: state.account?.lunchMoney ?? null,
-              lunchMoneyEarned: null,
-            }
-          : {}),
+        ...(isNewRoom ? { result: null, rejection: null, opponentDropped: null } : {}),
       };
     }
 
@@ -221,7 +229,7 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       };
 
     case "profile":
-      return { ...state, account: msg.profile, lunchMoneyEarned: lunchMoneyEarnedAfter(state, msg.profile.lunchMoney) };
+      return { ...state, account: msg.profile };
 
     case "passwordChanged":
       return {
@@ -253,21 +261,8 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
       return state.savingDeck ? withAdminNotice(withDeck, "deck", "Deck saved.") : withDeck;
     }
 
-    case "shop": {
-      // A `shop` message answers both a plain `shopRequest` and a successful `shopBuy` —
-      // only the latter is a purchase. The oldest unanswered one says which it is.
-      const [answeredReply, ...stillPending] = state.pendingShopReplies;
-      const withShop: AppState = {
-        ...state,
-        shop: { items: msg.items, balance: msg.balance },
-        pendingShopReplies: stillPending,
-      };
-      if (answeredReply?.kind !== "buy") return withShop;
-      return {
-        ...withShop,
-        shopPurchase: { itemId: answeredReply.itemId, seq: (state.shopPurchase?.seq ?? 0) + 1 },
-      };
-    }
+    case "shop":
+      return withShopReply(state, msg);
 
     case "shopConfig": {
       // Same reasoning as `settings`, below.
@@ -354,13 +349,43 @@ function pendingShopRepliesAfterAccountError(
 }
 
 /**
- * The finished game's earnings: the first profile after `gameOver` (the server pushes it
- * right behind the result) against the balance when the room started. Set once, so a
- * later profile — a buy on the game-over screen — never changes it, and never negative.
+ * A `shop` message answers either a plain `shopRequest` or a successful `shopBuy`, and the
+ * server may leave any of them unanswered (a handler that throws sends nothing). So it is
+ * matched by what it shows, never by queue position alone (fix round 1):
+ *
+ * - It answers a pending buy when it shows that item owned: a purchase. Anything queued
+ *   before that buy would have been answered first, so it was lost and goes too.
+ * - Otherwise it answers the oldest pending request. A buy queued before that request
+ *   would have been answered first, and it was neither bought nor refused: it got no
+ *   answer, so Buy is released and the item is never worn.
+ * - With nothing pending to answer, it only refreshes the shop.
  */
-function lunchMoneyEarnedAfter(state: AppState, lunchMoney: number): number | null {
-  if (state.lunchMoneyEarned !== null) return state.lunchMoneyEarned;
-  if (state.result === null || state.lunchMoneyAtGameStart === null) return null;
-  const earned = lunchMoney - state.lunchMoneyAtGameStart;
-  return earned >= 0 ? earned : null;
+function withShopReply(state: AppState, msg: Extract<ServerMessage, { type: "shop" }>): AppState {
+  const withShop: AppState = { ...state, shop: { items: msg.items, balance: msg.balance } };
+  const ownedItemIds = new Set(msg.items.filter((item) => item.owned).map((item) => item.id));
+  const pendingShopReplies = state.pendingShopReplies;
+
+  const answeredBuyIndex = pendingShopReplies.findIndex(
+    (pendingReply) => pendingReply.kind === "buy" && ownedItemIds.has(pendingReply.itemId),
+  );
+  const answeredBuy = pendingShopReplies[answeredBuyIndex];
+  if (answeredBuy?.kind === "buy") {
+    return {
+      ...withShop,
+      pendingShopReplies: pendingShopReplies.slice(answeredBuyIndex + 1),
+      shopPurchase: { itemId: answeredBuy.itemId, seq: (state.shopPurchase?.seq ?? 0) + 1 },
+      unansweredBuyItemId: null,
+    };
+  }
+
+  const answeredRequestIndex = pendingShopReplies.findIndex((pendingReply) => pendingReply.kind === "request");
+  if (answeredRequestIndex === -1) return withShop;
+  const unansweredBuy = pendingShopReplies
+    .slice(0, answeredRequestIndex)
+    .find((pendingReply) => pendingReply.kind === "buy");
+  return {
+    ...withShop,
+    pendingShopReplies: pendingShopReplies.slice(answeredRequestIndex + 1),
+    unansweredBuyItemId: unansweredBuy?.kind === "buy" ? unansweredBuy.itemId : state.unansweredBuyItemId,
+  };
 }

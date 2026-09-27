@@ -1,5 +1,6 @@
 import { useGame } from "../state/GameProvider.js";
 import { useRetained } from "../hooks/useRetained.js";
+import { lunchMoneyEarnedIn } from "../state/gameState.js";
 import { CoinIcon } from "./icons.js";
 
 export function GameOverPanel() {
@@ -14,8 +15,8 @@ export function GameOverPanel() {
     { seat: room.opponent.seat, name: room.opponent.name, score: result.scores[room.opponent.seat] ?? 0, side: "opponent" },
   ];
   const best = Math.max(...rows.map((row) => row.score));
-  // Only a logged-in player earns Lunch Money; it shows once the updated profile arrives.
-  const lunchMoneyEarned = state.account ? state.lunchMoneyEarned : null;
+  // Only a logged-in player earns Lunch Money: their own score (fix round 1).
+  const lunchMoneyEarned = lunchMoneyEarnedIn(state.account, result, room);
 
   return (
     <section className="panel panel--over">
