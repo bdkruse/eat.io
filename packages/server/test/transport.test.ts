@@ -21,9 +21,9 @@ function recordingLobby() {
 
 function open(port: number) {
   const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-  const inbox: ServerMessage[] = [];
-  ws.on("message", (d) => inbox.push(JSON.parse(d.toString())));
-  return { ws, inbox, ready: new Promise<void>((res) => ws.on("open", () => res())) };
+  // Resolves on the first server message, so a test waits for the reply, not a fixed time.
+  const firstMessage = new Promise<ServerMessage>((res) => ws.once("message", (d) => res(JSON.parse(d.toString()))));
+  return { ws, firstMessage, ready: new Promise<void>((res) => ws.on("open", () => res())) };
 }
 
 const nextTick = () => new Promise((r) => setTimeout(r, 20));
@@ -34,8 +34,7 @@ test("malformed JSON gets a typed error and does not reach the lobby", async () 
   const c = open(transport.port);
   await c.ready;
   c.ws.send("{not json");
-  await nextTick();
-  expect(c.inbox[0]).toMatchObject({ type: "error", code: "BAD_JSON" });
+  expect(await c.firstMessage).toMatchObject({ type: "error", code: "BAD_JSON" });
   expect(rec.messages).toHaveLength(0);
 });
 
@@ -45,8 +44,7 @@ test("a schema-invalid message is rejected with a typed error", async () => {
   const c = open(transport.port);
   await c.ready;
   c.ws.send(JSON.stringify({ type: "definitelyNotAMessage" }));
-  await nextTick();
-  expect(c.inbox[0]).toMatchObject({ type: "error", code: "BAD_MESSAGE" });
+  expect(await c.firstMessage).toMatchObject({ type: "error", code: "BAD_MESSAGE" });
   expect(rec.messages).toHaveLength(0);
 });
 
