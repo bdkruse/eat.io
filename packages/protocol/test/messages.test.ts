@@ -30,6 +30,7 @@ function baseRoomState() {
       appearance: VALID_APPEARANCE,
       table: [{ id: "t1", value: 2 }],
       hand: [{ id: "add1x1", instanceId: "c1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1 }],
+      extraServings: [],
     },
     opponent: {
       seat: "b",
@@ -39,6 +40,7 @@ function baseRoomState() {
       appearance: null,
       handCount: 5,
       table: [{ id: "u1", value: 3 }],
+      extraServings: [2, 2],
     },
   };
 }
@@ -94,6 +96,37 @@ test("roomState with appearance: null parses", () => {
   expect(parsed.type).toBe("roomState");
 });
 
+test("roomState without extraServings on you or opponent fails", () => {
+  const view = baseRoomState() as Record<string, unknown>;
+  const you = view["you"] as Record<string, unknown>;
+  delete you["extraServings"];
+  expect(() => parseServerMessage(view)).toThrow();
+
+  const viewOpponent = baseRoomState() as Record<string, unknown>;
+  const opponent = viewOpponent["opponent"] as Record<string, unknown>;
+  delete opponent["extraServings"];
+  expect(() => parseServerMessage(viewOpponent)).toThrow();
+});
+
+test("CardView with targets: 0 parses, and turns is optional", () => {
+  const view = baseRoomState() as Record<string, unknown>;
+  const you = view["you"] as Record<string, unknown>;
+  you["hand"] = [
+    { id: "addAll1", instanceId: "c9", name: "Add One Food To Every Tray", action: "addAll", amount: 1, targets: 0 },
+    {
+      id: "servings2x2",
+      instanceId: "c10",
+      name: "Extra Servings",
+      action: "extraServings",
+      amount: 2,
+      targets: 0,
+      turns: 2,
+    },
+  ];
+  const parsed = parseServerMessage(view);
+  expect(parsed.type).toBe("roomState");
+});
+
 test("hello with loginToken parses", () => {
   const msg = parseClientMessage({
     type: "hello",
@@ -122,6 +155,76 @@ test("each new client message parses", () => {
   ).toBe("accountChangePassword");
   expect(parseClientMessage({ type: "appearanceSet", appearance: VALID_APPEARANCE }).type).toBe("appearanceSet");
   expect(parseClientMessage({ type: "profileRequest" }).type).toBe("profileRequest");
+});
+
+test("each v4 admin client message parses", () => {
+  expect(parseClientMessage({ type: "settingsRequest" }).type).toBe("settingsRequest");
+  expect(
+    parseClientMessage({ type: "settingsSave", roundCount: 20, turnSeconds: 20, handSize: 5 }).type,
+  ).toBe("settingsSave");
+  // settingsSave fields are loose z.number() on purpose, so a fraction still parses here —
+  // it is settingsProblem's job to refuse it with INVALID_SETTINGS.
+  expect(
+    parseClientMessage({ type: "settingsSave", roundCount: 20.5, turnSeconds: 20, handSize: 5 }).type,
+  ).toBe("settingsSave");
+  expect(parseClientMessage({ type: "deckRequest" }).type).toBe("deckRequest");
+  expect(
+    parseClientMessage({ type: "deckSave", cards: [{ cardId: "add1x1", copies: 5 }] }).type,
+  ).toBe("deckSave");
+});
+
+test("each v4 admin server message parses", () => {
+  expect(
+    parseServerMessage({
+      type: "settings",
+      settings: { roundCount: 20, turnSeconds: 20, handSize: 5 },
+      updatedAt: 1700000000000,
+      updatedBy: "Riley",
+    }).type,
+  ).toBe("settings");
+  expect(
+    parseServerMessage({
+      type: "settings",
+      settings: { roundCount: 20, turnSeconds: 20, handSize: 5 },
+      updatedAt: null,
+      updatedBy: null,
+    }).type,
+  ).toBe("settings");
+  expect(
+    parseServerMessage({
+      type: "deck",
+      cards: [
+        { id: "add1x1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1, copies: 5 },
+        {
+          id: "servings2x2",
+          name: "Extra Servings",
+          action: "extraServings",
+          amount: 2,
+          targets: 0,
+          turns: 2,
+          copies: 1,
+        },
+      ],
+      total: 40,
+      updatedAt: null,
+      updatedBy: null,
+    }).type,
+  ).toBe("deck");
+  expect(
+    parseServerMessage({ type: "adminError", code: "FORBIDDEN", message: "Not allowed." }).type,
+  ).toBe("adminError");
+});
+
+test("deck card view has no instanceId", () => {
+  const parsed = parseServerMessage({
+    type: "deck",
+    cards: [{ id: "add1x1", name: "Add One Food To One Tray", action: "add", amount: 1, targets: 1, copies: 5 }],
+    total: 40,
+    updatedAt: null,
+    updatedBy: null,
+  });
+  if (parsed.type !== "deck") throw new Error("expected a deck message");
+  expect(parsed.cards[0]).not.toHaveProperty("instanceId");
 });
 
 test("each new server message parses", () => {

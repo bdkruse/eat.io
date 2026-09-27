@@ -38,6 +38,15 @@ test("permissionsFor maps each role to its permissions", () => {
   expect(permissionsFor("admin")).toContain("admin.open");
 });
 
+test("admin gets settings.edit but not deck.edit; creator gets all three permissions", () => {
+  const adminPermissions = permissionsFor("admin");
+  expect(adminPermissions).toContain("admin.open");
+  expect(adminPermissions).toContain("settings.edit");
+  expect(adminPermissions).not.toContain("deck.edit");
+
+  expect(permissionsFor("creator")).toEqual(["admin.open", "settings.edit", "deck.edit"]);
+});
+
 test("AppearanceSchema accepts a valid look and rejects an out-of-palette color", () => {
   const validAppearance = {
     skinTone: "#eec19b",

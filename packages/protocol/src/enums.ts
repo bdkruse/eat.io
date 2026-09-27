@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const CardActionSchema = z.enum(["add", "multiply"]);
+export const CardActionSchema = z.enum(["add", "multiply", "addAll", "extraServings"]);
 export type CardAction = z.infer<typeof CardActionSchema>;
 
 export const SeatSchema = z.enum(["a", "b"]);

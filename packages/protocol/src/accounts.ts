@@ -26,12 +26,12 @@ export type Accessory = Appearance["accessory"];
 export const ROLES = ["player", "admin", "creator"] as const;
 export const RoleSchema = z.enum(ROLES);
 export type Role = z.infer<typeof RoleSchema>;
-export const PERMISSIONS = ["admin.open"] as const;
+export const PERMISSIONS = ["admin.open", "settings.edit", "deck.edit"] as const;
 export const PermissionSchema = z.enum(PERMISSIONS);
 export type Permission = z.infer<typeof PermissionSchema>;
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   player: [],
-  admin: ["admin.open"],
+  admin: ["admin.open", "settings.edit"],
   creator: PERMISSIONS,
 };
 export function permissionsFor(role: Role): Permission[] {

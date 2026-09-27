@@ -8,6 +8,7 @@ import {
   RejectionCodeSchema,
 } from "./enums.js";
 import { AppearanceSchema, ProfileSchema, AccountErrorCodeSchema } from "./accounts.js";
+import { GameSettingsSchema, DeckEntrySchema, AdminErrorCodeSchema } from "./gameConfig.js";
 
 // ---------- value shapes ----------
 
@@ -20,7 +21,11 @@ export const CardViewSchema = z.object({
   name: z.string(),
   action: CardActionSchema,
   amount: z.number().int().positive(),
-  targets: z.number().int().positive(),
+  /** A tray effect (`add`, `multiply`) takes one or more targets; a table
+   *  effect (`addAll`, `extraServings`) takes none. */
+  targets: z.number().int().nonnegative(),
+  /** Present only on `extraServings`: how many arriving trays it boosts. */
+  turns: z.number().int().positive().optional(),
 });
 
 export const TrayViewSchema = z.object({
@@ -41,6 +46,8 @@ export const YouViewSchema = z.object({
   appearance: AppearanceSchema.nullable(),
   table: z.array(TrayViewSchema),
   hand: z.array(CardViewSchema),
+  /** Upcoming bonuses; index 0 boosts the next tray to arrive at this table. */
+  extraServings: z.array(z.number().int().positive()),
 });
 
 export const OpponentViewSchema = z.object({
@@ -52,6 +59,8 @@ export const OpponentViewSchema = z.object({
   handCount: z.number().int().nonnegative(),
   table: z.array(TrayViewSchema),
   // NB: no `hand` — opponent cards are absent from the payload (§0.8).
+  /** Upcoming bonuses; public, same shape as `YouView.extraServings`. */
+  extraServings: z.array(z.number().int().positive()),
 });
 
 export const RoomStateSchema = z.object({
@@ -111,6 +120,22 @@ export const AppearanceSetSchema = z.object({
 });
 export const ProfileRequestSchema = z.object({ type: z.literal("profileRequest") });
 
+// The settingsSave fields are loose `z.number()` on purpose, same reasoning as
+// the account credential fields above: the server answers `adminError`
+// `INVALID_SETTINGS` with a specific message rather than a generic `BAD_MESSAGE`.
+export const SettingsRequestSchema = z.object({ type: z.literal("settingsRequest") });
+export const SettingsSaveSchema = z.object({
+  type: z.literal("settingsSave"),
+  roundCount: z.number(),
+  turnSeconds: z.number(),
+  handSize: z.number(),
+});
+export const DeckRequestSchema = z.object({ type: z.literal("deckRequest") });
+export const DeckSaveSchema = z.object({
+  type: z.literal("deckSave"),
+  cards: z.array(DeckEntrySchema).max(200),
+});
+
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   HelloSchema,
   QueueJoinSchema,
@@ -126,6 +151,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   AccountChangePasswordSchema,
   AppearanceSetSchema,
   ProfileRequestSchema,
+  SettingsRequestSchema,
+  SettingsSaveSchema,
+  DeckRequestSchema,
+  DeckSaveSchema,
 ]);
 
 // ---------- server -> client ----------
@@ -178,6 +207,37 @@ export const ProfileMessageSchema = z.object({
 });
 export const PasswordChangedSchema = z.object({ type: z.literal("passwordChanged") });
 
+export const SettingsMessageSchema = z.object({
+  type: z.literal("settings"),
+  settings: GameSettingsSchema,
+  updatedAt: z.number().int().nullable(),
+  updatedBy: z.string().nullable(),
+});
+
+/** The card view fields without `instanceId` (a catalog card has no single
+ *  instance) plus `copies`, the count of that card in the deck. */
+export const DeckCardSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  action: CardActionSchema,
+  amount: z.number().int().positive(),
+  targets: z.number().int().nonnegative(),
+  turns: z.number().int().positive().optional(),
+  copies: z.number().int(),
+});
+export const DeckMessageSchema = z.object({
+  type: z.literal("deck"),
+  cards: z.array(DeckCardSchema),
+  total: z.number().int(),
+  updatedAt: z.number().int().nullable(),
+  updatedBy: z.string().nullable(),
+});
+export const AdminErrorSchema = z.object({
+  type: z.literal("adminError"),
+  code: AdminErrorCodeSchema,
+  message: z.string(),
+});
+
 export const ServerMessageSchema = z.discriminatedUnion("type", [
   WelcomeSchema,
   ErrorSchema,
@@ -197,6 +257,9 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   AccountErrorSchema,
   ProfileMessageSchema,
   PasswordChangedSchema,
+  SettingsMessageSchema,
+  DeckMessageSchema,
+  AdminErrorSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -208,6 +271,7 @@ export type TrayView = z.infer<typeof TrayViewSchema>;
 export type Result = z.infer<typeof ResultSchema>;
 export type YouView = z.infer<typeof YouViewSchema>;
 export type OpponentView = z.infer<typeof OpponentViewSchema>;
+export type DeckCard = z.infer<typeof DeckCardSchema>;
 
 export function parseClientMessage(raw: unknown): ClientMessage {
   return ClientMessageSchema.parse(raw);

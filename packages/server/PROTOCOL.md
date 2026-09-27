@@ -1,6 +1,6 @@
 # eat.io WebSocket Protocol
 
-**Protocol version: 3.** This document is the complete contract between the eat.io
+**Protocol version: 4.** This document is the complete contract between the eat.io
 server and any client. The zod schemas in `@eat.io/protocol` are the source of truth; this
 prose describes them. If they disagree, the schemas win — but they should not.
 
@@ -55,6 +55,10 @@ Nothing is silently absorbed.
 | `accountChangePassword` | `currentPassword: string`, `newPassword: string` | Change the password on the logged-in account. Answered with `passwordChanged` or `accountError`. |
 | `appearanceSet` | `appearance: Appearance` | Set the sender's on-board look. For a logged-in session this also saves to the account. |
 | `profileRequest` | — | Ask for the current account's profile. Answered with `profile`. |
+| `settingsRequest` | — | Ask for the current game settings. Requires `settings.edit`. Answered with `settings` or `adminError`. |
+| `settingsSave` | `roundCount: number`, `turnSeconds: number`, `handSize: number` | Save new game settings. Requires `settings.edit`. The field limits on the wire are loose; the server applies the real ranges (see Limits below) and answers `adminError` `INVALID_SETTINGS` on failure, never a generic `error`. Answered with `settings` on success. |
+| `deckRequest` | — | Ask for the current default deck. Requires `deck.edit`. Answered with `deck` or `adminError`. |
+| `deckSave` | `cards: { cardId: string, copies: number }[]` (max 200 entries) | Save a new default deck. Requires `deck.edit`. Same looseness as `settingsSave`: an out-of-range save answers `adminError` `INVALID_DECK`. Answered with `deck` on success. |
 
 `submitTurn` is the only in-game action, and it is **semantic** — it names what you did in
 game terms, never UI events (no clicks/drags/selection). Selection and targeting order are
@@ -82,6 +86,9 @@ the client's business and resolve to this one committed action.
 | `accountError` | `code: AccountErrorCode`, `message: string` | An account operation failed. See account error codes below. |
 | `profile` | `profile: Profile` | Answers `profileRequest`. |
 | `passwordChanged` | — | Acknowledges a successful `accountChangePassword`. |
+| `settings` | `settings: GameSettings`, `updatedAt: number \| null`, `updatedBy: string \| null` | Answers `settingsRequest` or a successful `settingsSave`. `updatedAt`/`updatedBy` are null until the first save. |
+| `deck` | `cards: DeckCard[]`, `total: number`, `updatedAt: number \| null`, `updatedBy: string \| null` | Answers `deckRequest` or a successful `deckSave`. `cards` lists every catalog card with its `copies`; `total` is the sum. |
+| `adminError` | `code: AdminErrorCode`, `message: string` | A settings/deck request or save failed. See Admin error codes below. |
 
 ### `roomState` (the per-player view)
 
@@ -103,7 +110,10 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "appearance": Appearance | null,   // null if never set
     "table": [ { "id": string, "value": number }, ... ],   // front tray first
     "hand": [ { "id": string, "instanceId": string, "name": string,
-               "action": "add" | "multiply", "amount": number, "targets": number }, ... ]
+               "action": "add" | "multiply" | "addAll" | "extraServings",
+               "amount": number, "targets": number,
+               "turns": number }, ... ],   // "turns" is present only on "extraServings"
+    "extraServings": number[]     // upcoming bonuses; index 0 boosts the next tray to arrive
   },
   "opponent": {
     "seat": "a" | "b",
@@ -112,7 +122,8 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "submitted": boolean,
     "appearance": Appearance | null,   // null if never set
     "handCount": number,         // COUNT only — never the opponent's cards
-    "table": [ { "id": string, "value": number }, ... ]
+    "table": [ { "id": string, "value": number }, ... ],
+    "extraServings": number[]     // public, same shape as `you.extraServings`
   }
 }
 ```
@@ -120,8 +131,38 @@ Sent to each player with **only what that player may see**. Deltas are never use
 **Secrecy:** the opponent's `hand` cards and both players' decks are **absent** from the
 payload — not hidden, absent. Render only what you are sent.
 
-**Rendering from data:** card `name`, `action`, `amount`, and `targets` all come from the
-server. Do not hardcode card behavior, hand size, or table length — they can change.
+**Rendering from data:** card `name`, `action`, `amount`, `targets`, and `turns` all come
+from the server. Do not hardcode card behavior, hand size, or table length — they can
+change. `targets` can be `0` for a card that needs no tray choice; `turns` is present only
+on `extraServings`.
+
+### Tray effects and table effects
+
+A card's `action` is one of two kinds:
+
+- **Tray effects** (`add`, `multiply`) change each chosen tray. `targets` is the number of
+  trays `submitTurn.targetTrayIds` must name.
+- **Table effects** (`addAll`, `extraServings`) take no tray choice — `targets` is always
+  `0`, and `submitTurn.targetTrayIds` must be an empty array (`WRONG_TARGET_COUNT`
+  otherwise). `addAll` adds `amount` to every tray on the player's own table right away.
+  `extraServings` is described below.
+
+### `extraServings` (the per-player view field, not the card)
+
+Each player's view carries `extraServings: number[]`, a public list of upcoming bonuses.
+Index 0 is the bonus for the next tray to arrive at that player's table. A round resolves
+in this order:
+
+1. **The played card's effect.** An `extraServings` card adds its `amount` to each of the
+   next `turns` entries in the list, extending the list with zeros first if it is shorter.
+   Overlapping cards add up.
+2. **The front tray is eaten**, as today.
+3. **A fresh tray arrives.** Its value is the random value plus `extraServings[0]`; that
+   entry is then removed. An empty list adds nothing.
+
+A card played this round boosts the tray that arrives at the end of this round, and the
+`turns − 1` trays after it. Both players' lists are public — render your opponent's the
+same way you render your own.
 
 ### The two card ids
 
@@ -162,6 +203,11 @@ connection. A logged-in session's `appearanceSet` also saves the look to the acc
 for that role), `appearance` (nullable), `pointsScored`, `gamesPlayed`, `gamesWon`,
 `createdAt`, `lastLoginAt` (nullable). Sent in `accountLoggedIn` and `profile`.
 
+**Permissions.** `admin.open`, `settings.edit`, `deck.edit`. `player` gets none. `admin`
+gets `admin.open` and `settings.edit`. `creator` gets all three. The server checks the
+relevant permission on every settings/deck request and save, answering `adminError`
+`FORBIDDEN` if it is missing.
+
 **Account error codes.** `accountError.code` is one of: `INVALID_USERNAME`,
 `INVALID_PASSWORD`, `USERNAME_TAKEN`, `BAD_CREDENTIALS`, `WRONG_PASSWORD`, `RATE_LIMITED`,
 `NOT_LOGGED_IN`, `BUSY`. `BAD_CREDENTIALS` never says which of username or password was
@@ -176,12 +222,46 @@ wrong.
 - An unknown or expired `loginToken` on `hello`: the server answers `welcome`, then
   `accountLoggedOut` with `reason: "expired"`, and the session continues as a guest.
 
+## Game settings and the deck
+
+Admins and Creators edit two things in-game: the game settings and the default deck. Both
+live in `@eat.io/protocol` as shared limits, so the server and the client read the same
+numbers.
+
+**`GameSettings`.** `roundCount`, `turnSeconds`, `handSize`, all whole numbers. Sent inside
+`settings`.
+
+**`DeckCard`** (inside `deck.cards`). The card view fields without `instanceId` — `id`,
+`name`, `action`, `amount`, `targets`, `turns?` — plus `copies`, the count of that card in
+the deck. `deck.cards` lists **every** catalog card, including ones with `copies: 0`.
+
+**Limits.** A save outside these ranges is refused with `adminError` `INVALID_SETTINGS` or
+`INVALID_DECK` naming the broken limit — never a generic `error`.
+
+| Value | Range |
+|---|---|
+| `roundCount` | 1–30 |
+| `turnSeconds` | 5–120 |
+| `handSize` | 3–8 |
+| Copies of one card | 0–40 |
+| Deck total (`deckSave.cards` copies summed) | 10–100 |
+
+**`deckSave` validation** also rejects a card id absent from the catalog and a card id
+repeated more than once in `cards`.
+
+**`AdminErrorCode` values.** `FORBIDDEN` (missing permission), `INVALID_SETTINGS`,
+`INVALID_DECK`.
+
+A player mid-queue or mid-game can still save settings or the deck — a save only affects
+future games, never the one in progress (each room reads settings and the deck once, at
+start, and keeps them for its whole life).
+
 ## Typical sequences
 
 **Matchmake and play a round**
 
 ```
-C→S hello {protocolVersion:3, name:"Riley"}
+C→S hello {protocolVersion:4, name:"Riley"}
 S→C welcome {playerId, sessionToken}
 C→S queueJoin
 S→C queueWaiting                     (until an opponent arrives)
@@ -196,13 +276,13 @@ S→C roomState (roundIndex incremented, new deadlineAt)
 **Resume a logged-in account**
 
 ```
-C→S hello {protocolVersion:3, name:"Riley", loginToken:<stored token>}
+C→S hello {protocolVersion:4, name:"Riley", loginToken:<stored token>}
 S→C welcome {playerId, sessionToken}
 S→C accountLoggedIn {profile}                (no loginToken: the stored one is still good)
 ```
 
 ```
-C→S hello {protocolVersion:3, name:"Riley", loginToken:<unknown or expired>}
+C→S hello {protocolVersion:4, name:"Riley", loginToken:<unknown or expired>}
 S→C welcome {playerId, sessionToken}
 S→C accountLoggedOut {reason:"expired"}       session continues as a guest
 ```
@@ -214,7 +294,7 @@ S→C accountLoggedOut {reason:"expired"}       session continues as a guest
  ping goes unanswered for HEARTBEAT_TIMEOUT_MS and the socket is dropped)
 S→C(opponent) opponentDisconnected {graceEndsAt}     room is now paused
 (within grace, dropped client opens a new socket)
-C→S hello {protocolVersion:3, name:"Riley", sessionToken:<same token>}
+C→S hello {protocolVersion:4, name:"Riley", sessionToken:<same token>}
 S→C welcome {playerId:<same>, sessionToken:<same>}
 S→C(opponent) opponentReconnected
 S→C(both) roomState {phase:"in-progress", ...}       full view resent

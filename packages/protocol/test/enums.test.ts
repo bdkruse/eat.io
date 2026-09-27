@@ -7,6 +7,11 @@ test("card action accepts add/multiply and rejects others", () => {
   expect(() => CardActionSchema.parse("plate")).toThrow();
 });
 
+test("card action accepts the v4 table effects addAll and extraServings", () => {
+  expect(CardActionSchema.parse("addAll")).toBe("addAll");
+  expect(CardActionSchema.parse("extraServings")).toBe("extraServings");
+});
+
 test("room phase includes paused and abandoned", () => {
   expect(RoomPhaseSchema.parse("paused")).toBe("paused");
   expect(RoomPhaseSchema.parse("abandoned")).toBe("abandoned");
