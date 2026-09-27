@@ -9,6 +9,7 @@ import {
 } from "./enums.js";
 import { AppearanceSchema, ProfileSchema, AccountErrorCodeSchema } from "./accounts.js";
 import { GameSettingsSchema, DeckEntrySchema, AdminErrorCodeSchema } from "./gameConfig.js";
+import { ShopItemViewSchema, ShopConfigEntrySchema } from "./shop.js";
 
 // ---------- value shapes ----------
 
@@ -136,6 +137,14 @@ export const DeckSaveSchema = z.object({
   cards: z.array(DeckEntrySchema).max(200),
 });
 
+export const ShopRequestSchema = z.object({ type: z.literal("shopRequest") });
+export const ShopBuySchema = z.object({ type: z.literal("shopBuy"), itemId: z.string().max(64) });
+export const ShopConfigRequestSchema = z.object({ type: z.literal("shopConfigRequest") });
+export const ShopConfigSaveSchema = z.object({
+  type: z.literal("shopConfigSave"),
+  items: z.array(ShopConfigEntrySchema).max(200),
+});
+
 export const ClientMessageSchema = z.discriminatedUnion("type", [
   HelloSchema,
   QueueJoinSchema,
@@ -155,6 +164,10 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SettingsSaveSchema,
   DeckRequestSchema,
   DeckSaveSchema,
+  ShopRequestSchema,
+  ShopBuySchema,
+  ShopConfigRequestSchema,
+  ShopConfigSaveSchema,
 ]);
 
 // ---------- server -> client ----------
@@ -232,6 +245,17 @@ export const DeckMessageSchema = z.object({
   updatedAt: z.number().int().nullable(),
   updatedBy: z.string().nullable(),
 });
+export const ShopMessageSchema = z.object({
+  type: z.literal("shop"),
+  items: z.array(ShopItemViewSchema),
+  balance: z.number().int().nonnegative(),
+});
+export const ShopConfigMessageSchema = z.object({
+  type: z.literal("shopConfig"),
+  items: z.array(ShopItemViewSchema),
+  updatedAt: z.number().int().nullable(),
+  updatedBy: z.string().nullable(),
+});
 export const AdminErrorSchema = z.object({
   type: z.literal("adminError"),
   code: AdminErrorCodeSchema,
@@ -259,6 +283,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   PasswordChangedSchema,
   SettingsMessageSchema,
   DeckMessageSchema,
+  ShopMessageSchema,
+  ShopConfigMessageSchema,
   AdminErrorSchema,
 ]);
 

@@ -236,6 +236,8 @@ test("each new server message parses", () => {
     pointsScored: 0,
     gamesPlayed: 0,
     gamesWon: 0,
+    lunchMoney: 0,
+    ownedItems: [],
     createdAt: 1700000000000,
     lastLoginAt: null,
   };
@@ -248,4 +250,62 @@ test("each new server message parses", () => {
   ).toBe("accountError");
   expect(parseServerMessage({ type: "profile", profile }).type).toBe("profile");
   expect(parseServerMessage({ type: "passwordChanged" }).type).toBe("passwordChanged");
+});
+
+test("each shop client message parses", () => {
+  expect(parseClientMessage({ type: "shopRequest" }).type).toBe("shopRequest");
+  expect(parseClientMessage({ type: "shopBuy", itemId: "extra.crown" }).type).toBe("shopBuy");
+  expect(() => parseClientMessage({ type: "shopBuy" })).toThrow();
+  expect(parseClientMessage({ type: "shopConfigRequest" }).type).toBe("shopConfigRequest");
+  expect(
+    parseClientMessage({
+      type: "shopConfigSave",
+      items: [
+        { itemId: "extra.crown", price: 120, available: true },
+        { itemId: "shirt.gold", price: 100, available: false },
+      ],
+    }).type,
+  ).toBe("shopConfigSave");
+  // price is a loose z.number() on purpose, like settingsSave: an out-of-range or
+  // fractional price still parses so the server can answer adminError INVALID_SHOP.
+  expect(
+    parseClientMessage({
+      type: "shopConfigSave",
+      items: [{ itemId: "extra.crown", price: 0.5, available: true }],
+    }).type,
+  ).toBe("shopConfigSave");
+  expect(() =>
+    parseClientMessage({ type: "shopConfigSave", items: [{ itemId: "extra.crown", price: 120 }] }),
+  ).toThrow();
+});
+
+test("each shop server message parses", () => {
+  const shopItems = [
+    { id: "extra.crown", name: "Crown", kind: "extra", price: 100, available: true, owned: true },
+    { id: "eyeColor.gold", name: "Glowing Gold", kind: "eyeColor", price: 80, available: false, owned: false },
+  ];
+  expect(parseServerMessage({ type: "shop", items: shopItems, balance: 140 }).type).toBe("shop");
+  expect(() => parseServerMessage({ type: "shop", items: shopItems, balance: -1 })).toThrow();
+  expect(() =>
+    parseServerMessage({ type: "shop", items: [{ ...shopItems[0], kind: "pantsColor" }], balance: 0 }),
+  ).toThrow();
+  expect(
+    parseServerMessage({ type: "shopConfig", items: shopItems, updatedAt: 1700000000000, updatedBy: "Riley" }).type,
+  ).toBe("shopConfig");
+  expect(parseServerMessage({ type: "shopConfig", items: shopItems, updatedAt: null, updatedBy: null }).type).toBe(
+    "shopConfig",
+  );
+  expect(parseServerMessage({ type: "adminError", code: "INVALID_SHOP", message: "Bad price." }).type).toBe(
+    "adminError",
+  );
+  for (const code of ["NOT_OWNED", "NOT_AVAILABLE", "ALREADY_OWNED", "NOT_ENOUGH"]) {
+    expect(parseServerMessage({ type: "accountError", code, message: "No." }).type).toBe("accountError");
+  }
+});
+
+test("appearanceSet from a client without face fields parses with the face defaults", () => {
+  const parsed = parseClientMessage({ type: "appearanceSet", appearance: VALID_APPEARANCE });
+  if (parsed.type !== "appearanceSet") throw new Error("expected appearanceSet");
+  expect(parsed.appearance.eyeShape).toBe("round");
+  expect(parsed.appearance.mouthShape).toBe("smile");
 });

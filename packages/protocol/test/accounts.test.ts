@@ -5,6 +5,21 @@ import {
   permissionsFor,
   PERMISSIONS,
   AppearanceSchema,
+  ProfileSchema,
+  AccountErrorCodeSchema,
+  AdminErrorCodeSchema,
+  ACCESSORIES,
+  SHIRT_COLORS,
+  HAIR_COLORS,
+  EYE_SHAPES,
+  EYE_COLORS,
+  MOUTH_SHAPES,
+  FREE_ACCESSORIES,
+  FREE_SHIRT_COLORS,
+  FREE_HAIR_COLORS,
+  FREE_EYE_SHAPES,
+  FREE_EYE_COLORS,
+  FREE_MOUTH_SHAPES,
 } from "../src/index.js";
 
 test("isValidUsername accepts letters, digits, underscore, and hyphen within 3-14 chars", () => {
@@ -38,13 +53,14 @@ test("permissionsFor maps each role to its permissions", () => {
   expect(permissionsFor("admin")).toContain("admin.open");
 });
 
-test("admin gets settings.edit but not deck.edit; creator gets all three permissions", () => {
+test("admin gets settings.edit but not deck.edit or shop.edit; creator gets all four permissions", () => {
   const adminPermissions = permissionsFor("admin");
   expect(adminPermissions).toContain("admin.open");
   expect(adminPermissions).toContain("settings.edit");
   expect(adminPermissions).not.toContain("deck.edit");
+  expect(adminPermissions).not.toContain("shop.edit");
 
-  expect(permissionsFor("creator")).toEqual(["admin.open", "settings.edit", "deck.edit"]);
+  expect(permissionsFor("creator")).toEqual(["admin.open", "settings.edit", "deck.edit", "shop.edit"]);
 });
 
 test("AppearanceSchema accepts a valid look and rejects an out-of-palette color", () => {
@@ -55,9 +71,117 @@ test("AppearanceSchema accepts a valid look and rejects an out-of-palette color"
     shirtColor: "#4a7fa5",
     pantsColor: "#3f5a7a",
     accessory: "glasses",
+    eyeShape: "sleepy",
+    eyeColor: FREE_EYE_COLORS[4],
+    mouthShape: "smirk",
   };
   expect(AppearanceSchema.parse(validAppearance)).toEqual(validAppearance);
   expect(() =>
     AppearanceSchema.parse({ ...validAppearance, skinTone: "#000000" }),
   ).toThrow();
+});
+
+test("an appearance stored before the face fields existed parses with Round, Dark Brown, Smile", () => {
+  // The exact shape a v3 server saved to the accounts table: six fields, no face.
+  const storedBeforeFaces = JSON.parse(
+    '{"skinTone":"#d9a47a","hairStyle":"puffs","hairColor":"#c4622d","shirtColor":"#7d5ba6","pantsColor":"#6b7048","accessory":"beanie"}',
+  );
+  expect(AppearanceSchema.parse(storedBeforeFaces)).toEqual({
+    skinTone: "#d9a47a",
+    hairStyle: "puffs",
+    hairColor: "#c4622d",
+    shirtColor: "#7d5ba6",
+    pantsColor: "#6b7048",
+    accessory: "beanie",
+    eyeShape: "round",
+    eyeColor: FREE_EYE_COLORS[0],
+    mouthShape: "smile",
+  });
+});
+
+test("the face defaults are the first free value of each face list", () => {
+  expect(FREE_EYE_SHAPES[0]).toBe("round");
+  expect(FREE_MOUTH_SHAPES[0]).toBe("smile");
+  expect(FREE_EYE_SHAPES).toEqual(["round", "almond", "sleepy", "sparkly"]);
+  expect(FREE_MOUTH_SHAPES).toEqual(["smile", "grin", "calm", "smirk"]);
+  expect(FREE_EYE_COLORS).toHaveLength(6);
+});
+
+test("AppearanceSchema rejects an unknown face value", () => {
+  const faceless = {
+    skinTone: "#eec19b",
+    hairStyle: "bob",
+    hairColor: "#5a3825",
+    shirtColor: "#4a7fa5",
+    pantsColor: "#3f5a7a",
+    accessory: "none",
+  };
+  expect(() => AppearanceSchema.parse({ ...faceless, eyeShape: "square" })).toThrow();
+  expect(() => AppearanceSchema.parse({ ...faceless, eyeColor: "#000000" })).toThrow();
+  expect(() => AppearanceSchema.parse({ ...faceless, mouthShape: "frown" })).toThrow();
+});
+
+test("the free option lists are today's values, and the full lists add only the shop values", () => {
+  expect(FREE_ACCESSORIES).toEqual(["none", "glasses", "cap", "headband", "beanie"]);
+  expect(FREE_SHIRT_COLORS).toEqual(["#d94f3d", "#4a7fa5", "#5f9e4a", "#e8a33d", "#7d5ba6", "#3e9c95", "#e07a9a", "#f4f1ea"]);
+  expect(FREE_HAIR_COLORS).toEqual(["#2b2220", "#3d2a1e", "#5a3825", "#8a3b1f", "#c4622d", "#d9b25f"]);
+
+  expect(ACCESSORIES).toEqual([
+    ...FREE_ACCESSORIES,
+    "sunglasses",
+    "bowTie",
+    "headphones",
+    "chefHat",
+    "crown",
+    "propellerCap",
+    "trafficCone",
+    "vikingHelmet",
+    "alienAntennae",
+    "bananaHat",
+  ]);
+  expect(SHIRT_COLORS.slice(0, FREE_SHIRT_COLORS.length)).toEqual([...FREE_SHIRT_COLORS]);
+  expect(SHIRT_COLORS).toHaveLength(FREE_SHIRT_COLORS.length + 3);
+  expect(HAIR_COLORS.slice(0, FREE_HAIR_COLORS.length)).toEqual([...FREE_HAIR_COLORS]);
+  expect(HAIR_COLORS).toHaveLength(FREE_HAIR_COLORS.length + 3);
+  expect(EYE_SHAPES).toEqual([...FREE_EYE_SHAPES, "star", "heart"]);
+  expect(EYE_COLORS.slice(0, FREE_EYE_COLORS.length)).toEqual([...FREE_EYE_COLORS]);
+  expect(EYE_COLORS).toHaveLength(FREE_EYE_COLORS.length + 2);
+  expect(MOUTH_SHAPES).toEqual([...FREE_MOUTH_SHAPES, "tongue", "fangs"]);
+});
+
+test("color option values are distinct lowercase hex strings", () => {
+  for (const colorList of [SHIRT_COLORS, HAIR_COLORS, EYE_COLORS]) {
+    expect(new Set(colorList).size).toBe(colorList.length);
+    for (const colorValue of colorList) expect(colorValue).toMatch(/^#[0-9a-f]{6}$/);
+  }
+});
+
+test("ProfileSchema requires lunchMoney as a non-negative whole number and ownedItems as strings", () => {
+  const profile = {
+    username: "Riley",
+    role: "player",
+    permissions: [],
+    appearance: null,
+    pointsScored: 12,
+    gamesPlayed: 2,
+    gamesWon: 1,
+    lunchMoney: 12,
+    ownedItems: ["extra.crown"],
+    createdAt: 1700000000000,
+    lastLoginAt: null,
+  };
+  expect(ProfileSchema.parse(profile)).toEqual(profile);
+  expect(() => ProfileSchema.parse({ ...profile, lunchMoney: -1 })).toThrow();
+  expect(() => ProfileSchema.parse({ ...profile, lunchMoney: 1.5 })).toThrow();
+  const { lunchMoney: _lunchMoney, ...profileWithoutLunchMoney } = profile;
+  expect(() => ProfileSchema.parse(profileWithoutLunchMoney)).toThrow();
+  const { ownedItems: _ownedItems, ...profileWithoutOwnedItems } = profile;
+  expect(() => ProfileSchema.parse(profileWithoutOwnedItems)).toThrow();
+});
+
+test("account error codes include the shop and ownership codes, admin codes include INVALID_SHOP", () => {
+  for (const code of ["NOT_OWNED", "NOT_AVAILABLE", "ALREADY_OWNED", "NOT_ENOUGH"]) {
+    expect(AccountErrorCodeSchema.options).toContain(code);
+  }
+  expect(AdminErrorCodeSchema.options).toContain("INVALID_SHOP");
 });

@@ -1,14 +1,76 @@
 import { z } from "zod";
 
 // ---------- appearance ----------
+// Each option list is the free values followed by the shop values. The FREE_*
+// lists are the values anyone may wear; every other value is unlocked by exactly
+// one shop item (see shop.ts).
 
 export const SKIN_TONES = ["#f6d7bf", "#eec19b", "#d9a47a", "#b87a4f", "#8d5634", "#5e3a24"] as const;
 export const HAIR_STYLES = ["short", "bob", "curly", "ponytail", "buzz", "puffs"] as const;
-export const HAIR_COLORS = ["#2b2220", "#3d2a1e", "#5a3825", "#8a3b1f", "#c4622d", "#d9b25f"] as const;
-export const SHIRT_COLORS = ["#d94f3d", "#4a7fa5", "#5f9e4a", "#e8a33d", "#7d5ba6", "#3e9c95", "#e07a9a", "#f4f1ea"] as const;
 export const PANTS_COLORS = ["#3f5a7a", "#b59a6d", "#444a52", "#6b7048"] as const;
-export const ACCESSORIES = ["none", "glasses", "cap", "headband", "beanie"] as const;
 
+export const FREE_HAIR_COLORS = ["#2b2220", "#3d2a1e", "#5a3825", "#8a3b1f", "#c4622d", "#d9b25f"] as const;
+export const HAIR_COLORS = [
+  ...FREE_HAIR_COLORS,
+  "#1f6fff", // Electric Blue
+  "#ff77c8", // Bubblegum Pink
+  "#c9ccd1", // Silver
+] as const;
+
+export const FREE_SHIRT_COLORS = [
+  "#d94f3d",
+  "#4a7fa5",
+  "#5f9e4a",
+  "#e8a33d",
+  "#7d5ba6",
+  "#3e9c95",
+  "#e07a9a",
+  "#f4f1ea",
+] as const;
+export const SHIRT_COLORS = [
+  ...FREE_SHIRT_COLORS,
+  "#d4af37", // Gold
+  "#b6ff3b", // Neon Lime
+  "#1c2340", // Midnight
+] as const;
+
+export const FREE_ACCESSORIES = ["none", "glasses", "cap", "headband", "beanie"] as const;
+export const ACCESSORIES = [
+  ...FREE_ACCESSORIES,
+  "sunglasses",
+  "bowTie",
+  "headphones",
+  "chefHat",
+  "crown",
+  "propellerCap",
+  "trafficCone",
+  "vikingHelmet",
+  "alienAntennae",
+  "bananaHat",
+] as const;
+
+export const FREE_EYE_SHAPES = ["round", "almond", "sleepy", "sparkly"] as const;
+export const EYE_SHAPES = [...FREE_EYE_SHAPES, "star", "heart"] as const;
+
+export const FREE_EYE_COLORS = [
+  "#3b2417", // Dark Brown (the default)
+  "#6b4226", // Brown
+  "#8e7240", // Hazel
+  "#4f8a4c", // Green
+  "#4a78b5", // Blue
+  "#7d868f", // Gray
+] as const;
+export const EYE_COLORS = [
+  ...FREE_EYE_COLORS,
+  "#8a4fd1", // Violet
+  "#ffcc33", // Glowing Gold
+] as const;
+
+export const FREE_MOUTH_SHAPES = ["smile", "grin", "calm", "smirk"] as const;
+export const MOUTH_SHAPES = [...FREE_MOUTH_SHAPES, "tongue", "fangs"] as const;
+
+// The face fields default so a look stored before they existed (six fields, no
+// face) still parses — as Round eyes, Dark Brown, and a Smile.
 export const AppearanceSchema = z.object({
   skinTone: z.enum(SKIN_TONES),
   hairStyle: z.enum(HAIR_STYLES),
@@ -16,17 +78,22 @@ export const AppearanceSchema = z.object({
   shirtColor: z.enum(SHIRT_COLORS),
   pantsColor: z.enum(PANTS_COLORS),
   accessory: z.enum(ACCESSORIES),
+  eyeShape: z.enum(EYE_SHAPES).default(FREE_EYE_SHAPES[0]),
+  eyeColor: z.enum(EYE_COLORS).default(FREE_EYE_COLORS[0]),
+  mouthShape: z.enum(MOUTH_SHAPES).default(FREE_MOUTH_SHAPES[0]),
 });
 export type Appearance = z.infer<typeof AppearanceSchema>;
 export type HairStyle = Appearance["hairStyle"];
 export type Accessory = Appearance["accessory"];
+export type EyeShape = Appearance["eyeShape"];
+export type MouthShape = Appearance["mouthShape"];
 
 // ---------- roles and permissions ----------
 
 export const ROLES = ["player", "admin", "creator"] as const;
 export const RoleSchema = z.enum(ROLES);
 export type Role = z.infer<typeof RoleSchema>;
-export const PERMISSIONS = ["admin.open", "settings.edit", "deck.edit"] as const;
+export const PERMISSIONS = ["admin.open", "settings.edit", "deck.edit", "shop.edit"] as const;
 export const PermissionSchema = z.enum(PERMISSIONS);
 export type Permission = z.infer<typeof PermissionSchema>;
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -61,6 +128,9 @@ export const ProfileSchema = z.object({
   pointsScored: z.number().int().nonnegative(),
   gamesPlayed: z.number().int().nonnegative(),
   gamesWon: z.number().int().nonnegative(),
+  lunchMoney: z.number().int().nonnegative(),
+  /** Shop item ids (see SHOP_ITEMS) this account has bought. */
+  ownedItems: z.array(z.string()),
   createdAt: z.number().int(),
   lastLoginAt: z.number().int().nullable(),
 });
@@ -75,5 +145,11 @@ export const AccountErrorCodeSchema = z.enum([
   "RATE_LIMITED",
   "NOT_LOGGED_IN",
   "BUSY",
+  // appearanceSet: the look uses a shop item the player does not own.
+  "NOT_OWNED",
+  // shopBuy refusals.
+  "NOT_AVAILABLE",
+  "ALREADY_OWNED",
+  "NOT_ENOUGH",
 ]);
 export type AccountErrorCode = z.infer<typeof AccountErrorCodeSchema>;

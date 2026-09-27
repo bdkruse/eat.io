@@ -59,6 +59,10 @@ Nothing is silently absorbed.
 | `settingsSave` | `roundCount: number`, `turnSeconds: number`, `handSize: number` | Save new game settings. Requires `settings.edit`. The field limits on the wire are loose; the server applies the real ranges (see Limits below) and answers `adminError` `INVALID_SETTINGS` on failure, never a generic `error`. Answered with `settings` on success. |
 | `deckRequest` | — | Ask for the current default deck. Requires `deck.edit`. Answered with `deck` or `adminError`. |
 | `deckSave` | `cards: { cardId: string, copies: number }[]` (max 200 entries) | Save a new default deck. Requires `deck.edit`. `copies` must be a whole number on the wire — a non-integer fails schema validation (`error`), not `adminError`. Once schema-valid, an unknown/duplicate card id, copies outside 0–40, or a deck total outside 10–100 answers `adminError` `INVALID_DECK`. Answered with `deck` on success. |
+| `shopRequest` | — | Ask for the shop and your Lunch Money balance. Logged-in only. Answered with `shop`, or `accountError` `NOT_LOGGED_IN` for a guest. |
+| `shopBuy` | `itemId: string` | Buy one shop item. Logged-in only. Answered with `shop` and the updated `profile`, or `accountError` `NOT_LOGGED_IN`, `NOT_AVAILABLE`, `ALREADY_OWNED`, or `NOT_ENOUGH`. |
+| `shopConfigRequest` | — | Ask for the Creator's shop config. Requires `shop.edit`. Answered with `shopConfig` or `adminError`. |
+| `shopConfigSave` | `items: { itemId: string, price: number, available: boolean }[]` (max 200 entries) | Save item prices and availability. Requires `shop.edit`. `price` is loose on the wire; an unknown item id or a price that is not a whole number from 1 to 1000 answers `adminError` `INVALID_SHOP`. Answered with `shopConfig` on success. |
 
 `submitTurn` is the only in-game action, and it is **semantic** — it names what you did in
 game terms, never UI events (no clicks/drags/selection). Selection and targeting order are
@@ -88,7 +92,9 @@ the client's business and resolve to this one committed action.
 | `passwordChanged` | — | Acknowledges a successful `accountChangePassword`. |
 | `settings` | `settings: GameSettings`, `updatedAt: number \| null`, `updatedBy: string \| null` | Answers `settingsRequest` or a successful `settingsSave`. `updatedAt`/`updatedBy` are null until the first save. |
 | `deck` | `cards: DeckCard[]`, `total: number`, `updatedAt: number \| null`, `updatedBy: string \| null` | Answers `deckRequest` or a successful `deckSave`. `cards` lists every catalog card with its `copies`; `total` is the sum. |
-| `adminError` | `code: AdminErrorCode`, `message: string` | A settings/deck request or save failed. See Admin error codes below. |
+| `shop` | `items: ShopItem[]`, `balance: number` | Answers `shopRequest` or a successful `shopBuy`. `balance` is your Lunch Money. |
+| `shopConfig` | `items: ShopItem[]`, `updatedAt: number \| null`, `updatedBy: string \| null` | Answers `shopConfigRequest` or a successful `shopConfigSave`. Lists every catalog item, including ones turned off. `updatedAt`/`updatedBy` are null until the first save. |
+| `adminError` | `code: AdminErrorCode`, `message: string` | A settings/deck/shop config request or save failed. See Admin error codes below. |
 
 ### `roomState` (the per-player view)
 
@@ -195,23 +201,35 @@ ordinary value — render it, do not treat it as a missing winner.
 ## Accounts, appearance, and profiles
 
 **`Appearance`.** A kid's on-board look: `skinTone`, `hairStyle`, `hairColor`, `shirtColor`,
-`pantsColor`, `accessory`. Each field is one of a fixed, protocol-defined list of values —
-not any string or color. A guest sends `appearanceSet` to set their own look for the current
-connection. A logged-in session's `appearanceSet` also saves the look to the account.
+`pantsColor`, `accessory`, `eyeShape`, `eyeColor`, `mouthShape`. Each field is one of a
+fixed, protocol-defined list of values — not any string or color. A guest sends
+`appearanceSet` to set their own look for the current connection. A logged-in session's
+`appearanceSet` also saves the look to the account.
+
+The three face fields are optional on the wire and default to `eyeShape: "round"`,
+`eyeColor` Dark Brown (`FREE_EYE_COLORS[0]`), and `mouthShape: "smile"`. A look saved
+before the face fields existed parses with those defaults.
+
+Some option values are shop items (see Lunch Money and the shop below). The `FREE_*` lists
+in `@eat.io/protocol` hold the values anyone may wear. `appearanceSet` with a shop value the
+player does not own answers `accountError` `NOT_OWNED`. A guest owns nothing, so any shop
+value is refused.
 
 **`Profile`.** `username`, `role` (`player` | `admin` | `creator`), `permissions` (the array
 for that role), `appearance` (nullable), `pointsScored`, `gamesPlayed`, `gamesWon`,
-`createdAt`, `lastLoginAt` (nullable). Sent in `accountLoggedIn` and `profile`.
+`lunchMoney`, `ownedItems` (shop item ids), `createdAt`, `lastLoginAt` (nullable). Sent in
+`accountLoggedIn` and `profile`.
 
-**Permissions.** `admin.open`, `settings.edit`, `deck.edit`. `player` gets none. `admin`
-gets `admin.open` and `settings.edit`. `creator` gets all three. The server checks the
-relevant permission on every settings/deck request and save, answering `adminError`
-`FORBIDDEN` if it is missing.
+**Permissions.** `admin.open`, `settings.edit`, `deck.edit`, `shop.edit`. `player` gets
+none. `admin` gets `admin.open` and `settings.edit`. `creator` gets all four. The server
+checks the relevant permission on every settings/deck/shop config request and save,
+answering `adminError` `FORBIDDEN` if it is missing.
 
 **Account error codes.** `accountError.code` is one of: `INVALID_USERNAME`,
 `INVALID_PASSWORD`, `USERNAME_TAKEN`, `BAD_CREDENTIALS`, `WRONG_PASSWORD`, `RATE_LIMITED`,
-`NOT_LOGGED_IN`, `BUSY`. `BAD_CREDENTIALS` never says which of username or password was
-wrong.
+`NOT_LOGGED_IN`, `BUSY`, `NOT_OWNED`, `NOT_AVAILABLE`, `ALREADY_OWNED`, `NOT_ENOUGH`.
+`BAD_CREDENTIALS` never says which of username or password was wrong. `NOT_OWNED` answers an
+`appearanceSet` that uses an unowned shop item. The last three answer `shopBuy`.
 
 **Login and resume.** A successful `accountRegister` or `accountLogin` answers
 `accountLoggedIn` with the profile and a fresh `loginToken`. Store that token and send it as
@@ -250,11 +268,43 @@ the deck. `deck.cards` lists **every** catalog card, including ones with `copies
 repeated more than once in `cards`.
 
 **`AdminErrorCode` values.** `FORBIDDEN` (missing permission), `INVALID_SETTINGS`,
-`INVALID_DECK`.
+`INVALID_DECK`, `INVALID_SHOP` (a bad `shopConfigSave`).
 
 A player mid-queue or mid-game can still save settings or the deck — a save only affects
 future games, never the one in progress (each room reads settings and the deck once, at
 start, and keeps them for its whole life).
+
+## Lunch Money and the shop
+
+**Lunch Money.** A logged-in player earns 1 Lunch Money for each food eaten in a finished
+game (the same count as points scored). Guests earn nothing. Each logged-in player gets
+their updated `profile` at game over, as before; the difference in `lunchMoney` is what they
+earned.
+
+**Shop items.** The catalog is `SHOP_ITEMS` in `@eat.io/protocol`. Each item has an `id`, a
+`name`, a `kind`, the appearance value it unlocks, and a default price. The Creator's saved
+price and availability override the defaults.
+
+| Kind | Appearance field | Item ids |
+|---|---|---|
+| `extra` | `accessory` | `extra.sunglasses`, `extra.bowTie`, `extra.headphones`, `extra.chefHat`, `extra.crown`, `extra.propellerCap`, `extra.trafficCone`, `extra.vikingHelmet`, `extra.alienAntennae`, `extra.bananaHat` |
+| `shirtColor` | `shirtColor` | `shirt.gold`, `shirt.neonLime`, `shirt.midnight` |
+| `hairColor` | `hairColor` | `hair.electricBlue`, `hair.bubblegum`, `hair.silver` |
+| `eyeShape` | `eyeShape` | `eyes.star`, `eyes.heart` |
+| `eyeColor` | `eyeColor` | `eyeColor.violet`, `eyeColor.gold` |
+| `mouthShape` | `mouthShape` | `mouth.tongue`, `mouth.fangs` |
+
+**`ShopItem`** (inside `shop.items` and `shopConfig.items`). `id`, `name`, `kind`, `price`
+(the current price), `available`, and `owned` (whether the receiving account owns it).
+
+**Buying.** One server transaction. The server checks that you are logged in, the item is
+available, you do not own it, and you can afford it. It then deducts the price and records
+the item as yours. Nothing is refunded or sold back.
+
+**Turning an item off.** An unavailable item cannot be bought. Players who already own it
+keep it and can still wear it.
+
+**Price limits.** Each price is a whole number from 1 to 1000 (`SHOP_PRICE_LIMITS`).
 
 ## Typical sequences
 
@@ -285,6 +335,17 @@ S→C accountLoggedIn {profile}                (no loginToken: the stored one is
 C→S hello {protocolVersion:4, name:"Riley", loginToken:<unknown or expired>}
 S→C welcome {playerId, sessionToken}
 S→C accountLoggedOut {reason:"expired"}       session continues as a guest
+```
+
+**Buy and wear a shop item**
+
+```
+C→S shopRequest
+S→C shop {items, balance:140}
+C→S shopBuy {itemId:"extra.crown"}
+S→C shop {items (crown owned:true), balance:40}
+S→C profile {profile (ownedItems includes "extra.crown")}
+C→S appearanceSet {appearance (accessory:"crown")}
 ```
 
 **Disconnect and reconnect**

@@ -74,7 +74,7 @@ export function deckProblem(entries: DeckEntry[], knownCardIds: readonly string[
 
 // ---------- admin errors ----------
 
-export const AdminErrorCodeSchema = z.enum(["FORBIDDEN", "INVALID_SETTINGS", "INVALID_DECK"]);
+export const AdminErrorCodeSchema = z.enum(["FORBIDDEN", "INVALID_SETTINGS", "INVALID_DECK", "INVALID_SHOP"]);
 export type AdminErrorCode = z.infer<typeof AdminErrorCodeSchema>;
 
 // ---------- internal ----------
