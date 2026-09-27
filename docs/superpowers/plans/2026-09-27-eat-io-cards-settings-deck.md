@@ -177,3 +177,77 @@ Server messages: `settings { settings: GameSettingsSchema, updatedAt: number | n
 
 - [ ] Update. `npm test` passes.
 - [ ] Commit: `docs: game settings, the deck editor, and the new cards`.
+
+---
+
+## Added 2026-09-27: Lunch Money, the shop, and face customization (spec §13)
+
+Execution order: Tasks 1–6, then 8–11, then Task 7 (docs) last, covering everything.
+
+Additional Global Constraints:
+- Lunch Money: +score per finished game for logged-in players, in the same transaction as the stats. Migration 3 backfills `lunch_money = points_scored`.
+- Shop items and default prices exactly as in spec §13.2 and §13.3. Price limits 1–1000. Permission `shop.edit` (Creator only; Creator already gets every permission).
+- Everything free today stays free. Guests cannot own or wear shop items.
+- An appearance stored before the face fields existed must still parse, with the defaults Round, Dark Brown, Smile.
+
+### Task 8: Protocol for Lunch Money, the shop, and faces
+
+**Files:** `packages/protocol/src/accounts.ts` (appearance), new `packages/protocol/src/shop.ts`, `messages.ts`, `index.ts`, `packages/server/PROTOCOL.md`. Tests in `packages/protocol/test/`.
+
+**Produces:**
+- `AppearanceSchema` gains `eyeShape`, `eyeColor`, `mouthShape`, each with `.default(...)` (round, the dark brown hex, smile). The accessory, shirt-color, and hair-color option lists gain the shop values. Face lists hold free plus shop values. Keep separate exported `FREE_*` lists of today's free values plus the free face values.
+- `shop.ts`: `SHOP_ITEMS: readonly ShopItemDefinition[]`, where each is `{ id, name, kind: "extra" | "shirtColor" | "hairColor" | "eyeShape" | "eyeColor" | "mouthShape", unlocks: { field: keyof Appearance; value: string }, defaultPrice }` with the 22 items of §13.2 and §13.3. `SHOP_PRICE_LIMITS = { min: 1, max: 1000 }`. `lockedItemsIn(appearance, ownedItemIds): string[]` returns the shop item ids the look uses and the player does not own.
+- `ProfileSchema` gains `lunchMoney` (non-negative integer) and `ownedItems` (string array).
+- `PERMISSIONS` gains `shop.edit`. Admin does not get it.
+- Messages per §13.6: `shopRequest`, `shopBuy { itemId }`, `shopConfigRequest`, `shopConfigSave { items }`, and the replies `shop { items, balance }` and `shopConfig { items, updatedAt, updatedBy }`. `AccountErrorCodeSchema` gains `NOT_OWNED`, `NOT_AVAILABLE`, `ALREADY_OWNED`, and `NOT_ENOUGH`.
+- Protocol version stays 4, because this ships in the same release as Task 1.
+
+- [ ] Failing tests: an old appearance without face fields parses with the defaults; `lockedItemsIn` for a free look (none), for a look with an unowned crown (the crown), and for one with an owned crown (none); every new message; admin lacks `shop.edit`. Implement. Protocol tests and tsc pass. Commit: `feat(protocol): Lunch Money, shop items, and face options`.
+
+### Task 9: Server for Lunch Money and the shop
+
+**Files:** `packages/server/src/accounts/database.ts` (migration 3), `accountStore.ts`, new `packages/server/src/shop/shopStore.ts`, `lobby/lobby.ts`. Tests: `packages/server/test/shopStore.test.ts`, `packages/server/test/shop.lobby.test.ts`, and an update to `accountStore.test.ts`.
+
+**Behavior:**
+- **Migration 3:** `lunch_money` column with the backfill, plus `owned_items` and `shop_items` tables per §13.5.
+- **Store:** `recordGames` adds the score to `lunch_money`. `profileOf` includes `lunchMoney` and `ownedItems`. `buyItem(accountId, itemId, price)` runs one transaction that refuses `ALREADY_OWNED` or `NOT_ENOUGH`. `ShopStore` gives item config (price and availability, merged over the code defaults) and saves it with who and when.
+- **Lobby:**
+  - `shopRequest`: guests get `NOT_LOGGED_IN`.
+  - `shopBuy`: refuses unavailable items. On success it sends `shop` and the updated `profile`.
+  - `shopConfigRequest` and `shopConfigSave` need `shop.edit`. A price outside the limits or an unknown id gets `INVALID_SHOP`, a new `AdminErrorCode`; add it in this task's protocol touch.
+  - `appearanceSet` refuses a look whose `lockedItemsIn` is not empty with `NOT_OWNED`. For guests, every shop item is locked.
+  - A room captures only allowed looks.
+
+- [ ] Failing tests per §13.8 (store and lobby). Implement. `npm test` and `npx tsc -b` pass. Commit: `feat(server): Lunch Money, the shop, and ownership checks on looks`.
+
+### Task 10: The kid model's new extras and faces
+
+**Files:** `packages/client-3d/src/scene/characters/KidHead.tsx` (and small new part files if it grows too large), `packages/client-3d/src/appearance/appearance.ts`.
+
+**Behavior:**
+- **The 10 new extras:** each drawn from primitives in the existing toon style.
+  - The propeller spins.
+  - The traffic cone and banana hat sit like hats and hide hair tufts, as the cap does.
+- **Eye shapes:** each drawn with its color, a dark pupil, and a highlight. Blinking works for all of them.
+- **Mouth shapes:** each is the resting mouth. The open mouth stays as it is.
+- **`randomAppearance`:** generated crowd kids use free values only. Include the face fields.
+
+- [ ] Look at every item and face in a headless-browser showroom (`?showroom` is not part of the shipped app; use a scratch page or a temporary route not committed). Commit: `feat(client): new extras, eye shapes and colors, and mouth shapes on the kid`.
+
+### Task 11: Shop and Lunch Money in the client
+
+**Files:** `src/state/*` (reducer, GameApi: `requestShop`, `buyItem`, `requestShopConfig`, `saveShopConfig`), `src/ui/TopBar.tsx`, `src/ui/CustomizePanel.tsx`, new `src/ui/ShopPanel.tsx`, `src/ui/CreatorPanel.tsx` (a Shop tab), `src/ui/ProfilePanel.tsx`, `src/ui/GameOverPanel.tsx`, `src/state/LocalState.tsx` (a `"shop"` panel), `src/scene/Stage.tsx` and `cameraShots.ts` (the shop shows your kid). Tests: reducer, and a pure option-row helper (owned, free, or locked with a price).
+
+**Behavior:**
+- **Top bar:** it shows the balance with a coin icon for a logged-in player, and a "Shop" button.
+- **Shop panel:**
+  - Items are grouped by kind, each with its price, and owned items are marked.
+  - Selecting an item previews it on your kid without saving.
+  - Buy is disabled when you cannot afford the item or already own it.
+  - After a buy, the item is equipped and saved.
+- **Customize:** owned shop values mix in with the free ones. Locked ones show a lock and the price, and choosing one opens the shop at that item. The eye-shape, eye-color, and mouth rows are new.
+- **Game-over panel:** it shows "+N Lunch Money" for a logged-in player.
+- **Profile:** it shows the balance.
+- **Creator panel:** a Shop tab with a price field and an available switch per item, and Save.
+
+- [ ] Tests, implement, and run `npm test`, `npm run typecheck`, and the client build. Commit: `feat(client): Lunch Money, the shop, and locked options in Customize`.
