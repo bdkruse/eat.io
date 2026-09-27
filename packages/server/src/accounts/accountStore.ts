@@ -24,6 +24,9 @@ export interface AccountRecord {
   pointsScored: number;
   gamesPlayed: number;
   gamesWon: number;
+  lunchMoney: number;
+  /** Shop item ids, in the order they were bought. */
+  ownedItems: string[];
   createdAt: number;
   lastLoginAt: number | null;
 }
@@ -31,6 +34,10 @@ export interface AccountRecord {
 export type RegisterResult =
   | { ok: true; account: AccountRecord }
   | { ok: false; code: "INVALID_USERNAME" | "INVALID_PASSWORD" | "USERNAME_TAKEN" };
+
+export type BuyResult =
+  | { ok: true; account: AccountRecord }
+  | { ok: false; code: "ALREADY_OWNED" | "NOT_ENOUGH" };
 
 export interface GameRecord {
   accountId: number;
@@ -47,6 +54,7 @@ interface AccountRow {
   points_scored: number;
   games_played: number;
   games_won: number;
+  lunch_money: number;
   created_at: number;
   last_login_at: number | null;
 }
@@ -162,14 +170,48 @@ export class AccountStore {
 
   recordGames(records: GameRecord[]): void {
     const updateOne = this.database.prepare(
-      "UPDATE accounts SET points_scored = points_scored + ?, games_played = games_played + 1, games_won = games_won + ? WHERE id = ?",
+      `UPDATE accounts SET
+         points_scored = points_scored + ?,
+         lunch_money = lunch_money + ?,
+         games_played = games_played + 1,
+         games_won = games_won + ?
+       WHERE id = ?`,
     );
     const updateAll = this.database.transaction((entries: GameRecord[]) => {
       for (const entry of entries) {
-        updateOne.run(entry.score, entry.won ? 1 : 0, entry.accountId);
+        // Lunch Money is earned one for one with points scored.
+        updateOne.run(entry.score, entry.score, entry.won ? 1 : 0, entry.accountId);
       }
     });
     updateAll(records);
+  }
+
+  /**
+   * Charges `price` and records `itemId` as owned, in one write-locked transaction.
+   * Ownership and the balance are both checked inside it, against the database rather
+   * than any record the caller holds, so neither a quick second buy nor a second server
+   * process can charge twice or spend past zero. Availability is the caller's check.
+   */
+  buyItem(accountId: number, itemId: string, price: number): BuyResult {
+    const buy = this.database.transaction((): BuyResult => {
+      const alreadyOwned = this.database
+        .prepare("SELECT 1 FROM owned_items WHERE account_id = ? AND item_id = ?")
+        .get(accountId, itemId);
+      if (alreadyOwned) return { ok: false, code: "ALREADY_OWNED" };
+
+      const charged = this.database
+        .prepare("UPDATE accounts SET lunch_money = lunch_money - ? WHERE id = ? AND lunch_money >= ?")
+        .run(price, accountId, price);
+      if (charged.changes === 0) return { ok: false, code: "NOT_ENOUGH" };
+
+      this.database
+        .prepare("INSERT INTO owned_items (account_id, item_id, purchased_at) VALUES (?, ?, ?)")
+        .run(accountId, itemId, this.clock.now());
+      const account = this.get(accountId);
+      if (!account) throw new Error(`buyItem: no such account ${accountId}`);
+      return { ok: true, account };
+    });
+    return buy.immediate();
   }
 
   get(accountId: number): AccountRecord | null {
@@ -195,6 +237,8 @@ export class AccountStore {
       pointsScored: account.pointsScored,
       gamesPlayed: account.gamesPlayed,
       gamesWon: account.gamesWon,
+      lunchMoney: account.lunchMoney,
+      ownedItems: [...account.ownedItems],
       createdAt: account.createdAt,
       lastLoginAt: account.lastLoginAt,
     };
@@ -212,6 +256,13 @@ export class AccountStore {
       | undefined;
   }
 
+  private ownedItemIds(accountId: number): string[] {
+    const rows = this.database
+      .prepare("SELECT item_id FROM owned_items WHERE account_id = ? ORDER BY purchased_at, rowid")
+      .all(accountId) as { item_id: string }[];
+    return rows.map((row) => row.item_id);
+  }
+
   private rowToRecord(row: AccountRow): AccountRecord {
     return {
       id: row.id,
@@ -221,6 +272,8 @@ export class AccountStore {
       pointsScored: row.points_scored,
       gamesPlayed: row.games_played,
       gamesWon: row.games_won,
+      lunchMoney: row.lunch_money,
+      ownedItems: this.ownedItemIds(row.id),
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at,
     };

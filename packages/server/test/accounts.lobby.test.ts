@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import {
+  AppearanceSchema,
   PROTOCOL_VERSION,
   type Appearance,
   type ClientMessage,
@@ -18,28 +19,30 @@ import { Lobby, type Connection } from "../src/lobby/lobby.js";
 import { openAccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
 import { GameConfigStore, startupSettings } from "../src/gameConfig/gameConfigStore.js";
+import { ShopStore } from "../src/shop/shopStore.js";
 import { STARTING_DECK } from "../src/engine/rules/content.js";
 
 const ROUND_COUNT = 2;
 const MOVE_DEADLINE_MS = 20000;
 const PASSWORD = "correct-horse";
 
-const SUNNY_LOOK: Appearance = {
+// Parsed, as the wire would deliver them: the face fields take their defaults.
+const SUNNY_LOOK: Appearance = AppearanceSchema.parse({
   skinTone: "#f6d7bf",
   hairStyle: "short",
   hairColor: "#2b2220",
   shirtColor: "#d94f3d",
   pantsColor: "#3f5a7a",
   accessory: "none",
-};
-const BREEZY_LOOK: Appearance = {
+});
+const BREEZY_LOOK: Appearance = AppearanceSchema.parse({
   skinTone: "#8d5634",
   hairStyle: "curly",
   hairColor: "#c4622d",
   shirtColor: "#4a7fa5",
   pantsColor: "#b59a6d",
   accessory: "glasses",
-};
+});
 
 function makeLobby() {
   const time = manualTime();
@@ -64,6 +67,7 @@ function makeLobby() {
     genToken: () => `session-token-${++sessionTokenSequence}`,
     accounts,
     gameConfig,
+    shop: new ShopStore(database, time.clock),
   });
   return { lobby, time, accounts };
 }

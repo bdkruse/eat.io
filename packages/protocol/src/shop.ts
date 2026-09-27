@@ -99,3 +99,24 @@ export const ShopConfigEntrySchema = z.object({
   available: z.boolean(),
 });
 export type ShopConfigEntry = z.infer<typeof ShopConfigEntrySchema>;
+
+/** null when valid, else a message. knownItemIds: the catalog ids (SHOP_ITEMS). */
+export function shopConfigProblem(entries: readonly ShopConfigEntry[], knownItemIds: readonly string[]): string | null {
+  const seenItemIds = new Set<string>();
+  for (const entry of entries) {
+    if (!knownItemIds.includes(entry.itemId)) {
+      return `"${entry.itemId}" is not a known shop item.`;
+    }
+    if (seenItemIds.has(entry.itemId)) {
+      return `"${entry.itemId}" is listed more than once.`;
+    }
+    seenItemIds.add(entry.itemId);
+    if (!Number.isInteger(entry.price) || entry.price < SHOP_PRICE_LIMITS.min || entry.price > SHOP_PRICE_LIMITS.max) {
+      return `The price of "${entry.itemId}" must be a whole number between ${SHOP_PRICE_LIMITS.min} and ${SHOP_PRICE_LIMITS.max}.`;
+    }
+    if (typeof entry.available !== "boolean") {
+      return `Available for "${entry.itemId}" must be true or false.`;
+    }
+  }
+  return null;
+}

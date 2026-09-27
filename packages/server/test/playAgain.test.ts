@@ -14,6 +14,7 @@ import { Lobby, type Connection } from "../src/lobby/lobby.js";
 import { openAccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
 import { GameConfigStore, startupSettings } from "../src/gameConfig/gameConfigStore.js";
+import { ShopStore } from "../src/shop/shopStore.js";
 import { STARTING_DECK } from "../src/engine/rules/content.js";
 
 function makeLobby() {
@@ -34,6 +35,7 @@ function makeLobby() {
     genToken: () => `tok-${++tokSeq}`,
     accounts: new AccountStore(database, time.clock),
     gameConfig,
+    shop: new ShopStore(database, time.clock),
   });
   return lobby;
 }

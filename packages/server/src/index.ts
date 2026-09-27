@@ -13,6 +13,7 @@ import { startTransport, type Transport } from "./transport/server.js";
 import { openAccountsDatabase } from "./accounts/database.js";
 import { AccountStore } from "./accounts/accountStore.js";
 import { GameConfigStore, startupSettings } from "./gameConfig/gameConfigStore.js";
+import { ShopStore } from "./shop/shopStore.js";
 
 /** A four-digit room code — easy to read aloud and type. Collisions are retried by the
  *  matchmaker, and 10,000 codes is ample for the concurrent rooms this process holds. */
@@ -40,6 +41,7 @@ export async function createServer(config: Config = loadConfig()): Promise<Trans
     genToken: () => randomUUID(),
     accounts,
     gameConfig,
+    shop: new ShopStore(database, systemClock),
   });
   const transport = await startTransport({ lobby, config, logger });
   return {

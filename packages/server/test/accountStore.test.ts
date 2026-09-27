@@ -1,6 +1,11 @@
-import { describe, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Database from "better-sqlite3";
+import { afterEach, describe, expect, test } from "vitest";
 import {
   ACCESSORIES,
+  AppearanceSchema,
   HAIR_COLORS,
   HAIR_STYLES,
   PANTS_COLORS,
@@ -9,19 +14,39 @@ import {
   type Appearance,
 } from "@eat.io/protocol";
 import { manualTime } from "../src/lobby/timers.js";
-import { openAccountsDatabase, type AccountsDatabase } from "../src/accounts/database.js";
+import { MIGRATIONS, openAccountsDatabase, type AccountsDatabase } from "../src/accounts/database.js";
 import { AccountStore } from "../src/accounts/accountStore.js";
 
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
-const SAMPLE_APPEARANCE: Appearance = {
+// Parsed, as the wire would deliver it: the face fields take their defaults.
+const SAMPLE_APPEARANCE: Appearance = AppearanceSchema.parse({
   skinTone: SKIN_TONES[0],
   hairStyle: HAIR_STYLES[0],
   hairColor: HAIR_COLORS[0],
   shirtColor: SHIRT_COLORS[0],
   pantsColor: PANTS_COLORS[0],
   accessory: ACCESSORIES[0],
-};
+});
+
+const temporaryDirectories: string[] = [];
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
+
+function temporaryDatabasePath(): string {
+  const directory = mkdtempSync(join(tmpdir(), "eatio-accounts-"));
+  temporaryDirectories.push(directory);
+  return join(directory, "eatio.sqlite");
+}
+
+/** A registered account with `lunchMoney` to spend, set directly. */
+function accountWithLunchMoney(store: AccountStore, database: AccountsDatabase, lunchMoney: number): number {
+  const registered = store.register("shopper", "correct horse battery staple");
+  if (!registered.ok) throw new Error("setup failed");
+  database.prepare("UPDATE accounts SET lunch_money = ? WHERE id = ?").run(lunchMoney, registered.account.id);
+  return registered.account.id;
+}
 
 function makeStore(): {
   database: AccountsDatabase;
@@ -170,6 +195,29 @@ describe("AccountStore", () => {
     expect(found?.gamesWon).toBe(1);
   });
 
+  test("recordGames adds each score to Lunch Money", () => {
+    const { store } = makeStore();
+    const registered = store.register("gooduser", "correct horse battery staple");
+    if (!registered.ok) throw new Error("setup failed");
+    const accountId = registered.account.id;
+    expect(registered.account.lunchMoney).toBe(0);
+
+    store.recordGames([{ accountId, score: 12, won: true }]);
+    store.recordGames([{ accountId, score: 7, won: false }]);
+
+    expect(store.get(accountId)?.lunchMoney).toBe(19);
+  });
+
+  test("profileOf carries Lunch Money and the owned items", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 100);
+    store.buyItem(accountId, "extra.crown", 60);
+
+    const profile = store.profileOf(store.get(accountId)!);
+    expect(profile.lunchMoney).toBe(40);
+    expect(profile.ownedItems).toEqual(["extra.crown"]);
+  });
+
   test("inserting an unknown role directly is rejected by the check constraint", () => {
     const { database } = makeStore();
     expect(() =>
@@ -186,5 +234,110 @@ describe("AccountStore", () => {
 
     const profile = store.profileOf(registered.account);
     expect(profile.permissions).toContain("admin.open");
+  });
+});
+
+describe("migration 3", () => {
+  test("backfills Lunch Money from points scored for accounts made before it", () => {
+    const databasePath = temporaryDatabasePath();
+    const oldDatabase = new Database(databasePath);
+    oldDatabase.exec(MIGRATIONS[0]!);
+    oldDatabase.exec(MIGRATIONS[1]!);
+    oldDatabase.pragma("user_version = 2");
+    const insertAccount = oldDatabase.prepare(
+      "INSERT INTO accounts (username, password_hash, points_scored, created_at) VALUES (?, 'irrelevant', ?, 0)",
+    );
+    insertAccount.run("veteran", 137);
+    insertAccount.run("newcomer", 0);
+    oldDatabase.close();
+
+    const database = openAccountsDatabase(databasePath);
+    const { clock } = manualTime();
+    const store = new AccountStore(database, clock);
+    expect(database.pragma("user_version", { simple: true })).toBe(MIGRATIONS.length);
+    expect(store.findByUsername("veteran")?.lunchMoney).toBe(137);
+    expect(store.findByUsername("newcomer")?.lunchMoney).toBe(0);
+    expect(store.findByUsername("veteran")?.ownedItems).toEqual([]);
+    database.close();
+  });
+});
+
+describe("buyItem", () => {
+  test("deducts the price once and records ownership", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 100);
+
+    const result = store.buyItem(accountId, "extra.crown", 60);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.account.lunchMoney).toBe(40);
+    expect(result.account.ownedItems).toEqual(["extra.crown"]);
+    expect(store.get(accountId)?.lunchMoney).toBe(40);
+  });
+
+  test("refuses an item already owned without charging again", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 100);
+    store.buyItem(accountId, "extra.crown", 30);
+
+    expect(store.buyItem(accountId, "extra.crown", 30)).toEqual({ ok: false, code: "ALREADY_OWNED" });
+    expect(store.get(accountId)?.lunchMoney).toBe(70);
+    expect(store.get(accountId)?.ownedItems).toEqual(["extra.crown"]);
+  });
+
+  test("refuses an item that costs more than the balance, and changes nothing", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 59);
+
+    expect(store.buyItem(accountId, "extra.crown", 60)).toEqual({ ok: false, code: "NOT_ENOUGH" });
+    expect(store.get(accountId)?.lunchMoney).toBe(59);
+    expect(store.get(accountId)?.ownedItems).toEqual([]);
+  });
+
+  test("an item that costs exactly the balance can be bought, leaving zero", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 60);
+
+    expect(store.buyItem(accountId, "extra.crown", 60).ok).toBe(true);
+    expect(store.get(accountId)?.lunchMoney).toBe(0);
+  });
+
+  test("two quick buys cannot overspend the balance", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 50);
+
+    const firstBuy = store.buyItem(accountId, "extra.sunglasses", 30);
+    const secondBuy = store.buyItem(accountId, "extra.bowTie", 30);
+
+    expect(firstBuy.ok).toBe(true);
+    expect(secondBuy).toEqual({ ok: false, code: "NOT_ENOUGH" });
+    expect(store.get(accountId)?.lunchMoney).toBe(20);
+    expect(store.get(accountId)?.ownedItems).toEqual(["extra.sunglasses"]);
+  });
+
+  test("two connections to one database file cannot overspend or double-charge", () => {
+    const databasePath = temporaryDatabasePath();
+    const { clock } = manualTime();
+    const firstDatabase = openAccountsDatabase(databasePath);
+    const secondDatabase = openAccountsDatabase(databasePath);
+    const firstStore = new AccountStore(firstDatabase, clock);
+    const secondStore = new AccountStore(secondDatabase, clock);
+    const accountId = accountWithLunchMoney(firstStore, firstDatabase, 50);
+    // Both copies read the same starting balance before either buys.
+    expect(secondStore.get(accountId)?.lunchMoney).toBe(50);
+
+    expect(firstStore.buyItem(accountId, "extra.sunglasses", 30).ok).toBe(true);
+    expect(secondStore.buyItem(accountId, "extra.bowTie", 30)).toEqual({ ok: false, code: "NOT_ENOUGH" });
+    expect(secondStore.buyItem(accountId, "extra.sunglasses", 10)).toEqual({ ok: false, code: "ALREADY_OWNED" });
+    expect(firstStore.get(accountId)?.lunchMoney).toBe(20);
+    firstDatabase.close();
+    secondDatabase.close();
+  });
+
+  test("a negative balance is refused by the database itself", () => {
+    const { store, database } = makeStore();
+    const accountId = accountWithLunchMoney(store, database, 10);
+    expect(() => database.prepare("UPDATE accounts SET lunch_money = -1 WHERE id = ?").run(accountId)).toThrow();
   });
 });

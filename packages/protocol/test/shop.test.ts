@@ -1,8 +1,9 @@
-import { expect, test } from "vitest";
+import { describe, expect, test } from "vitest";
 import {
   SHOP_ITEMS,
   SHOP_PRICE_LIMITS,
   lockedItemsIn,
+  shopConfigProblem,
   AppearanceSchema,
   ACCESSORIES,
   SHIRT_COLORS,
@@ -185,4 +186,55 @@ test("lockedItemsIn names every unowned shop value the look uses", () => {
   expect(lockedItemsIn(shopLook, ["eyes.heart"]).sort()).toEqual(
     ["extra.vikingHelmet", "shirt.midnight", "eyeColor.gold", "mouth.fangs"].sort(),
   );
+});
+
+describe("shopConfigProblem", () => {
+  const knownItemIds = SHOP_ITEMS.map((item) => item.id);
+
+  test("a whole-number price inside the limits, a known id, and a boolean pass", () => {
+    expect(
+      shopConfigProblem(
+        [
+          { itemId: "extra.crown", price: SHOP_PRICE_LIMITS.min, available: true },
+          { itemId: "shirt.gold", price: SHOP_PRICE_LIMITS.max, available: false },
+        ],
+        knownItemIds,
+      ),
+    ).toBeNull();
+  });
+
+  test("an empty list passes", () => {
+    expect(shopConfigProblem([], knownItemIds)).toBeNull();
+  });
+
+  test.each([0, 1001, 12.5, -3, Number.NaN, Number.POSITIVE_INFINITY])("a price of %s is refused", (price) => {
+    const problem = shopConfigProblem([{ itemId: "extra.crown", price, available: true }], knownItemIds);
+    expect(problem).toContain("extra.crown");
+    expect(problem).toContain("1 and 1000");
+  });
+
+  test("an unknown item id is refused", () => {
+    expect(shopConfigProblem([{ itemId: "extra.jetpack", price: 50, available: true }], knownItemIds)).toBe(
+      '"extra.jetpack" is not a known shop item.',
+    );
+  });
+
+  test("an item listed twice is refused", () => {
+    expect(
+      shopConfigProblem(
+        [
+          { itemId: "extra.crown", price: 50, available: true },
+          { itemId: "extra.crown", price: 60, available: false },
+        ],
+        knownItemIds,
+      ),
+    ).toBe('"extra.crown" is listed more than once.');
+  });
+
+  test("a non-boolean available is refused", () => {
+    const notABoolean = "yes" as unknown as boolean;
+    expect(
+      shopConfigProblem([{ itemId: "extra.crown", price: 50, available: notABoolean }], knownItemIds),
+    ).toBe('Available for "extra.crown" must be true or false.');
+  });
 });

@@ -1,19 +1,27 @@
 import {
   DECK_LIMITS,
   PROTOCOL_VERSION,
+  SHOP_ITEMS,
   deckProblem,
+  lockedItemsIn,
   permissionsFor,
   settingsProblem,
+  shopConfigProblem,
   type AccountErrorCode,
   type AdminErrorCode,
+  type Appearance,
   type ClientMessage,
   type DeckEntry,
   type GameSettings,
   type Permission,
   type ServerMessage,
+  type ShopConfigEntry,
+  type ShopItemView,
 } from "@eat.io/protocol";
 import type { AccountRecord, AccountStore } from "../accounts/accountStore.js";
 import type { GameConfigStore } from "../gameConfig/gameConfigStore.js";
+import type { ShopItemConfig, ShopStore } from "../shop/shopStore.js";
+import { withoutLockedItems } from "../shop/looks.js";
 import type { PlayerId } from "../engine/state.js";
 import { makeRules } from "../engine/rules/index.js";
 import { CARD_CATALOG, STARTING_DECK } from "../engine/rules/content.js";
@@ -42,6 +50,8 @@ export interface LobbyDeps {
   accounts: AccountStore;
   /** Game settings and the default deck. Each room reads them once, when it starts. */
   gameConfig: GameConfigStore;
+  /** The Creator's shop prices and availability. */
+  shop: ShopStore;
 }
 
 const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
@@ -53,6 +63,10 @@ const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
   RATE_LIMITED: "Too many tries. Wait a minute and try again.",
   NOT_LOGGED_IN: "You are not logged in.",
   BUSY: "Leave the queue or the game first.",
+  NOT_OWNED: "That look uses a shop item you do not own.",
+  NOT_AVAILABLE: "That item is not in the shop.",
+  ALREADY_OWNED: "You already own that item.",
+  NOT_ENOUGH: "You do not have enough Lunch Money for that.",
 };
 
 /** BUSY also covers a register or login from a session that already has an account. */
@@ -61,6 +75,7 @@ const LOG_OUT_FIRST_MESSAGE = "Log out first.";
 const FORBIDDEN_MESSAGE = "You do not have permission to do that.";
 
 const CATALOG_CARD_IDS: readonly string[] = CARD_CATALOG.map((card) => card.id);
+const SHOP_ITEM_IDS: readonly string[] = SHOP_ITEMS.map((item) => item.id);
 
 export class Lobby {
   private sessions = new Map<string, Session>();
@@ -137,16 +152,11 @@ export class Lobby {
         this.handleChangePassword(session, msg.currentPassword, msg.newPassword);
         break;
       case "appearanceSet":
-        session.appearance = msg.appearance;
-        if (session.accountId !== null) this.deps.accounts.saveAppearance(session.accountId, msg.appearance);
+        this.handleAppearanceSet(session, msg.appearance);
         break;
       case "profileRequest": {
-        const account = session.accountId === null ? null : this.deps.accounts.get(session.accountId);
-        if (!account) {
-          this.sendAccountError(session, "NOT_LOGGED_IN");
-          break;
-        }
-        session.send({ type: "profile", profile: this.deps.accounts.profileOf(account) });
+        const account = this.loggedInAccount(session);
+        if (account) session.send({ type: "profile", profile: this.deps.accounts.profileOf(account) });
         break;
       }
       // Settings and deck changes affect only rooms that start later, so they are
@@ -168,6 +178,22 @@ export class Lobby {
         break;
       case "deckSave":
         this.handleDeckSave(session, msg.cards);
+        break;
+      case "shopRequest": {
+        const account = this.loggedInAccount(session);
+        if (account) session.send(this.shopMessage(account));
+        break;
+      }
+      case "shopBuy":
+        this.handleShopBuy(session, msg.itemId);
+        break;
+      case "shopConfigRequest": {
+        const account = this.accountWithPermission(session, "shop.edit");
+        if (account) session.send(this.shopConfigMessage(account));
+        break;
+      }
+      case "shopConfigSave":
+        this.handleShopConfigSave(session, msg.items);
         break;
       default: {
         const never: never = msg;
@@ -289,6 +315,8 @@ export class Lobby {
     session.accountId = null;
     session.loginToken = null;
     session.name = session.guestName;
+    // A guest owns nothing, so the account's shop items come off with the account.
+    if (session.appearance !== null) session.appearance = withoutLockedItems(session.appearance, []);
     session.send({ type: "accountLoggedOut", reason: "requested" });
   }
 
@@ -307,6 +335,52 @@ export class Lobby {
     }
     this.deps.accounts.deleteOtherLoginTokens(accountId, session.loginToken);
     session.send({ type: "passwordChanged" });
+  }
+
+  /**
+   * Refuses a look that uses a shop item the player does not own, before it reaches the
+   * session or the account. Ownership is read from the store now. A guest owns nothing.
+   */
+  private handleAppearanceSet(session: Session, appearance: Appearance): void {
+    const account = session.accountId === null ? null : this.deps.accounts.get(session.accountId);
+    if (lockedItemsIn(appearance, account?.ownedItems ?? []).length > 0) {
+      this.sendAccountError(session, "NOT_OWNED");
+      return;
+    }
+    session.appearance = appearance;
+    if (account) this.deps.accounts.saveAppearance(account.id, appearance);
+  }
+
+  /** The buy itself is one store transaction that checks ownership and the balance. */
+  private handleShopBuy(session: Session, itemId: string): void {
+    const account = this.loggedInAccount(session);
+    if (!account) return;
+    const itemConfig = this.deps.shop.itemConfig(itemId);
+    if (!itemConfig || !itemConfig.available) {
+      this.sendAccountError(session, "NOT_AVAILABLE");
+      return;
+    }
+    const purchase = this.deps.accounts.buyItem(account.id, itemId, itemConfig.price);
+    if (!purchase.ok) {
+      this.sendAccountError(session, purchase.code);
+      return;
+    }
+    this.deps.logger.info("shop item bought", { accountId: account.id, itemId, price: itemConfig.price });
+    session.send(this.shopMessage(purchase.account));
+    session.send({ type: "profile", profile: this.deps.accounts.profileOf(purchase.account) });
+  }
+
+  private handleShopConfigSave(session: Session, entries: ShopConfigEntry[]): void {
+    const account = this.accountWithPermission(session, "shop.edit");
+    if (!account) return;
+    const problem = shopConfigProblem(entries, SHOP_ITEM_IDS);
+    if (problem !== null) {
+      this.sendAdminError(session, "INVALID_SHOP", problem);
+      return;
+    }
+    this.deps.shop.saveConfig(entries, account.id);
+    this.deps.logger.info("shop config saved", { accountId: account.id });
+    session.send(this.shopConfigMessage(account));
   }
 
   private handleSettingsSave(session: Session, settings: GameSettings): void {
@@ -346,6 +420,33 @@ export class Lobby {
     const cards = CARD_CATALOG.map((card) => ({ ...card, copies: copiesByCardId.get(card.id) ?? 0 }));
     const total = cards.reduce((totalCopies, card) => totalCopies + card.copies, 0);
     return { type: "deck", cards, total, updatedAt, updatedBy };
+  }
+
+  /** The available items only: an item turned off leaves the shop, even for its owners. */
+  private shopMessage(account: AccountRecord): ServerMessage {
+    const items = this.deps.shop
+      .getConfig()
+      .items.filter((itemConfig) => itemConfig.available)
+      .map((itemConfig) => shopItemView(itemConfig, account));
+    return { type: "shop", items, balance: account.lunchMoney };
+  }
+
+  /** Every catalog item, including turned-off ones. */
+  private shopConfigMessage(account: AccountRecord): ServerMessage {
+    const { items, updatedAt, updatedBy } = this.deps.shop.getConfig();
+    return {
+      type: "shopConfig",
+      items: items.map((itemConfig) => shopItemView(itemConfig, account)),
+      updatedAt,
+      updatedBy,
+    };
+  }
+
+  /** The session's account, read from the store now, else null after answering NOT_LOGGED_IN. */
+  private loggedInAccount(session: Session): AccountRecord | null {
+    const account = session.accountId === null ? null : this.deps.accounts.get(session.accountId);
+    if (!account) this.sendAccountError(session, "NOT_LOGGED_IN");
+    return account;
   }
 
   /**
@@ -440,8 +541,19 @@ export class Lobby {
     this.roomAccounts.set(roomId, seatAccounts);
     for (const playerId of [aId, bId]) {
       const session = this.sessions.get(playerId);
-      room.addPlayer(playerId, session?.name ?? "Player", session?.appearance ?? null);
+      room.addPlayer(playerId, session?.name ?? "Player", session ? this.allowedLookOf(session) : null);
     }
+  }
+
+  /**
+   * The session's look with any shop item it does not own taken off. appearanceSet and
+   * logout already keep the session's look allowed; this is the last check before a
+   * room captures it for the whole game.
+   */
+  private allowedLookOf(session: Session): Appearance | null {
+    if (session.appearance === null) return null;
+    const account = session.accountId === null ? null : this.deps.accounts.get(session.accountId);
+    return withoutLockedItems(session.appearance, account?.ownedItems ?? []);
   }
 
   /**
@@ -506,4 +618,17 @@ export class Lobby {
     this.sessions.delete(session.id);
     this.byToken.delete(session.token);
   }
+}
+
+function shopItemView(itemConfig: ShopItemConfig, account: AccountRecord): ShopItemView {
+  const catalogItem = SHOP_ITEMS.find((item) => item.id === itemConfig.itemId);
+  if (!catalogItem) throw new Error(`shopItemView: ${itemConfig.itemId} is not in the catalog`);
+  return {
+    id: catalogItem.id,
+    name: catalogItem.name,
+    kind: catalogItem.kind,
+    price: itemConfig.price,
+    available: itemConfig.available,
+    owned: account.ownedItems.includes(catalogItem.id),
+  };
 }

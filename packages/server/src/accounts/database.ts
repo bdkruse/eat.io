@@ -53,6 +53,29 @@ export const MIGRATIONS: readonly string[] = [
     updated_by INTEGER REFERENCES accounts(id)
   );
   `,
+  // Lunch Money and the shop (spec 13.5). Existing accounts start with Lunch Money equal
+  // to the points they have scored. A missing shop_items row means the item uses its
+  // code defaults.
+  `
+  ALTER TABLE accounts ADD COLUMN lunch_money INTEGER NOT NULL DEFAULT 0 CHECK (lunch_money >= 0);
+  UPDATE accounts SET lunch_money = points_scored;
+  CREATE TABLE owned_items (
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    item_id TEXT NOT NULL,
+    purchased_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, item_id)
+  );
+  CREATE TABLE shop_items (
+    item_id TEXT PRIMARY KEY,
+    price INTEGER NOT NULL CHECK (price BETWEEN 1 AND 1000),
+    available INTEGER NOT NULL CHECK (available IN (0, 1))
+  );
+  CREATE TABLE shop_items_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    updated_at INTEGER,
+    updated_by INTEGER REFERENCES accounts(id)
+  );
+  `,
 ];
 
 /**

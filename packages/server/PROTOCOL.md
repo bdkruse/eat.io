@@ -213,7 +213,8 @@ before the face fields existed parses with those defaults.
 Some option values are shop items (see Lunch Money and the shop below). The `FREE_*` lists
 in `@eat.io/protocol` hold the values anyone may wear. `appearanceSet` with a shop value the
 player does not own answers `accountError` `NOT_OWNED`. A guest owns nothing, so any shop
-value is refused.
+value is refused. On `accountLogout` the session keeps its look with each shop value swapped
+for that field's first free value, and a room only ever captures a look the player may wear.
 
 **`Profile`.** `username`, `role` (`player` | `admin` | `creator`), `permissions` (the array
 for that role), `appearance` (nullable), `pointsScored`, `gamesPlayed`, `gamesWon`,
@@ -300,6 +301,10 @@ price and availability override the defaults.
 **Buying.** One server transaction. The server checks that you are logged in, the item is
 available, you do not own it, and you can afford it. It then deducts the price and records
 the item as yours. Nothing is refunded or sold back.
+
+**Saving the shop config.** Each listed item's price and availability are saved together;
+an item left out of `shopConfigSave.items` keeps what it had. An item never saved uses its
+default price and is available.
 
 **Turning an item off.** An unavailable item cannot be bought. Players who already own it
 keep it and can still wear it.

@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("migration 2", () => {
-  test("a version 1 database with an account upgrades to version 2 and the account is intact", () => {
+  test("a version 1 database with an account upgrades to the latest version and the account is intact", () => {
     const directory = mkdtempSync(join(tmpdir(), "eatio-gameconfig-"));
     temporaryDirectories.push(directory);
     const databasePath = join(directory, "eatio.sqlite");
@@ -52,7 +52,7 @@ describe("migration 2", () => {
     legacyDatabase.close();
 
     const upgraded = openAccountsDatabase(databasePath);
-    expect(upgraded.pragma("user_version", { simple: true })).toBe(2);
+    expect(upgraded.pragma("user_version", { simple: true })).toBe(MIGRATIONS.length);
 
     const account = upgraded.prepare("SELECT * FROM accounts WHERE username = ?").get("Bain") as {
       username: string;
