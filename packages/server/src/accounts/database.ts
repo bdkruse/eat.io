@@ -12,7 +12,7 @@ const LOCKED_RETRY_PAUSE_MS = 100;
  * Each entry runs once, in order, tracked by `PRAGMA user_version`. Append new
  * migrations rather than editing an entry that has already shipped.
  */
-const MIGRATIONS: readonly string[] = [
+export const MIGRATIONS: readonly string[] = [
   `
   CREATE TABLE accounts (
     id INTEGER PRIMARY KEY,
@@ -33,6 +33,25 @@ const MIGRATIONS: readonly string[] = [
     expires_at INTEGER NOT NULL
   );
   CREATE INDEX login_tokens_account ON login_tokens(account_id);
+  `,
+  `
+  CREATE TABLE game_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    round_count INTEGER NOT NULL,
+    turn_seconds INTEGER NOT NULL,
+    hand_size INTEGER NOT NULL,
+    updated_at INTEGER,
+    updated_by INTEGER REFERENCES accounts(id)
+  );
+  CREATE TABLE default_deck (
+    card_id TEXT PRIMARY KEY,
+    copies INTEGER NOT NULL CHECK (copies BETWEEN 0 AND 40)
+  );
+  CREATE TABLE default_deck_meta (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    updated_at INTEGER,
+    updated_by INTEGER REFERENCES accounts(id)
+  );
   `,
 ];
 

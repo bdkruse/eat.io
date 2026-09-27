@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, expect, test } from "vitest";
-import { openAccountsDatabase } from "../src/accounts/database.js";
+import { MIGRATIONS, openAccountsDatabase } from "../src/accounts/database.js";
 
 const repositoryRoot = fileURLToPath(new URL("../../..", import.meta.url));
 const fixturePath = fileURLToPath(new URL("./fixtures/openDatabaseOnce.ts", import.meta.url));
@@ -35,6 +35,6 @@ test("several processes opening a fresh database file at once all succeed", asyn
   for (const result of results) expect(result.errorOutput, result.errorOutput).not.toContain("Error");
   for (const result of results) expect(result.exitCode).toBe(0);
   const database = openAccountsDatabase(databasePath);
-  expect(database.pragma("user_version", { simple: true })).toBe(1);
+  expect(database.pragma("user_version", { simple: true })).toBe(MIGRATIONS.length);
   database.close();
 }, 60_000);
