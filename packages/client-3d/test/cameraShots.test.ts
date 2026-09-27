@@ -34,3 +34,13 @@ test("each remaining screen has its own shot", () => {
   expect(selectShot("game", false)).toBe("game");
   expect(selectShot("gameOver", false)).toBe("gameOver");
 });
+
+test("the admin or creator panel forces the menu shot, from the queue or the game-over screen", () => {
+  expect(selectShot("queue", false, false, true)).toBe("menu");
+  expect(selectShot("gameOver", false, false, true)).toBe("menu");
+  expect(selectShot("connect", false, true, true)).toBe("menu");
+});
+
+test("with neither panel open, the fourth argument defaults to not forcing the menu shot", () => {
+  expect(selectShot("queue", false)).toBe("queue");
+});

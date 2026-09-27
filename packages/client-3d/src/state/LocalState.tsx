@@ -20,19 +20,26 @@ import {
 import { DEFAULT_APPEARANCE, type Appearance } from "../appearance/appearance.js";
 import type { DetailLevel } from "../scene/detail.js";
 
+/** Which single panel is docked left, if any. A later task adds "shop" here alongside its
+ *  own Shop tab inside the creator panel (§9/§13) — this union is the one place that
+ *  extension touches. */
+export type OpenPanel = "customize" | "profile" | "admin" | "creator" | null;
+
 /**
  * State that belongs to this browser tab only and never reaches the server on its own —
- * how your kid looks, whether the customize or profile panel is open, and what you have
- * picked this turn. The look itself IS sent to the server at the moments §11 calls for
- * (connecting, logging in, and pressing Done), but the decision to do so lives here.
+ * how your kid looks, which panel (if any) is open, and what you have picked this turn.
+ * The look itself IS sent to the server at the moments §11 calls for (connecting, logging
+ * in, and pressing Done), but the decision to do so lives here.
  */
 export interface LocalStateApi {
   appearance: Appearance;
   setAppearance: (next: Appearance) => void;
-  customizing: boolean;
+  /** Docked left, mutually exclusive — opening one closes whichever else was open. */
+  openPanel: OpenPanel;
   setCustomizing: (open: boolean) => void;
-  profileOpen: boolean;
   setProfileOpen: (open: boolean) => void;
+  setAdminOpen: (open: boolean) => void;
+  setCreatorOpen: (open: boolean) => void;
   /** How much of the room to draw; low trades crowd and shadows for frame rate. */
   detail: DetailLevel;
   setDetail: (next: DetailLevel) => void;
@@ -51,38 +58,53 @@ const LocalStateContext = createContext<LocalStateApi | null>(null);
 export function LocalStateProvider({ children }: { children: ReactNode }) {
   const { state, submitTurn, noteLocalRejection, setAppearance: sendAppearanceToServer } = useGame();
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
-  const [customizing, setCustomizingState] = useState(false);
-  const [profileOpen, setProfileOpenState] = useState(false);
+  const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
 
   const connected = state.connection.phase === "connected";
 
-  // Opening one closes the other — the customize screen and the profile panel never
-  // both show at once.
+  // Opening any one of the four closes whichever else was open — they never show at the
+  // same time (§9 ruling).
+  const openOnly = useCallback((panel: Exclude<OpenPanel, null>) => setOpenPanel(panel), []);
+  // Closing checks it is actually the panel showing, so a stray "close" call from a panel
+  // that is not the current one (should not happen, but costs nothing to guard) can never
+  // clobber a different one that opened in the meantime.
+  const closeIfOpen = useCallback(
+    (panel: Exclude<OpenPanel, null>) => setOpenPanel((current) => (current === panel ? null : current)),
+    [],
+  );
+
   const setCustomizing = useCallback(
     (open: boolean) => {
-      if (open) setProfileOpenState(false);
-      setCustomizingState(open);
+      if (open) openOnly("customize");
+      else closeIfOpen("customize");
       // Done, while connected: a guest's look is shared, a logged-in player's is saved (§11).
       if (!open && connected) sendAppearanceToServer(appearance);
     },
-    [connected, appearance, sendAppearanceToServer],
+    [connected, appearance, sendAppearanceToServer, openOnly, closeIfOpen],
   );
 
-  const setProfileOpen = useCallback((open: boolean) => {
-    if (open) setCustomizingState(false);
-    setProfileOpenState(open);
-  }, []);
+  const setProfileOpen = useCallback(
+    (open: boolean) => (open ? openOnly("profile") : closeIfOpen("profile")),
+    [openOnly, closeIfOpen],
+  );
 
-  // A match found mid-edit takes you to the table; neither panel may reappear once
-  // seated. This is not "Done", so it sends nothing of its own.
+  const setAdminOpen = useCallback(
+    (open: boolean) => (open ? openOnly("admin") : closeIfOpen("admin")),
+    [openOnly, closeIfOpen],
+  );
+
+  const setCreatorOpen = useCallback(
+    (open: boolean) => (open ? openOnly("creator") : closeIfOpen("creator")),
+    [openOnly, closeIfOpen],
+  );
+
+  // A match found mid-edit takes you to the table; no panel may reappear once seated. This
+  // is not "Done", so it sends nothing of its own.
   const inRoom = state.room !== null;
   useEffect(() => {
-    if (inRoom) {
-      setCustomizingState(false);
-      setProfileOpenState(false);
-    }
+    if (inRoom) setOpenPanel(null);
   }, [inRoom]);
 
   const roundIndex = state.room?.roundIndex ?? null;
@@ -117,13 +139,15 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
 
   // Logging in replaces the local look with the account's saved one. A brand-new account
   // has none yet, so it is seeded with whatever look was already in use instead (§11).
-  // Logging out closes the profile panel: it has nothing left to show, and while open it
-  // would hide the pre-connect menu the logout returns to (final review, item 3).
+  // Logging out closes the profile, admin, and creator panels: none has anything left to
+  // show a guest with no permissions, and while open one would hide the pre-connect menu
+  // the logout returns to (final review, item 3). Customize stays open — a guest can still
+  // use it.
   const previousAccountRef = useRef<AppState["account"]>(null);
   useEffect(() => {
     const previousAccount = previousAccountRef.current;
     if (previousAccount !== null && state.account === null) {
-      setProfileOpenState(false);
+      setOpenPanel((current) => (current === "customize" ? current : null));
     }
     if (previousAccount === null && state.account !== null) {
       if (state.account.appearance) {
@@ -166,10 +190,11 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     () => ({
       appearance,
       setAppearance,
-      customizing,
+      openPanel,
       setCustomizing,
-      profileOpen,
       setProfileOpen,
+      setAdminOpen,
+      setCreatorOpen,
       detail,
       setDetail,
       selection,
@@ -182,10 +207,11 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     }),
     [
       appearance,
-      customizing,
+      openPanel,
       setCustomizing,
-      profileOpen,
       setProfileOpen,
+      setAdminOpen,
+      setCreatorOpen,
       detail,
       selection,
       targetCount,

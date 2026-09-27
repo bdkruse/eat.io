@@ -47,8 +47,18 @@ export const CAMERA_SHOTS: Record<ShotName, CameraShot> = {
  * A match outranks showing your kid — whether that is the customize screen or the
  * profile panel (the caller ORs the two together, §11) — if one is found mid-edit or
  * mid-profile, go to the table.
+ *
+ * `forceMenuShot`: the admin or creator panel is open. Neither one shows your kid, and
+ * both use the menu shot regardless of the screen underneath — the queue or even the
+ * game-over screen, everywhere the top bar's Admin/Creator buttons show (§9).
  */
-export function selectShot(screen: Screen, showingKid: boolean, portrait = false): ShotName {
+export function selectShot(
+  screen: Screen,
+  showingKid: boolean,
+  portrait = false,
+  forceMenuShot = false,
+): ShotName {
+  if (forceMenuShot) return "menu";
   switch (screen) {
     case "game":
       return portrait ? "gamePortrait" : "game";

@@ -12,7 +12,9 @@ export type Action =
   | { kind: "backToConnectedMenu" }
   | { kind: "dismissRejection" }
   | { kind: "dismissAccountError" }
-  | { kind: "accountAttemptStarted" };
+  | { kind: "accountAttemptStarted" }
+  | { kind: "settingsSaveStarted" }
+  | { kind: "deckSaveStarted" };
 
 /** Everything a new room must not inherit from the previous one (§2.5). */
 const CLEARED_FOR_NEW_ROOM = {
@@ -55,6 +57,10 @@ export function gameReducer(state: AppState, action: Action): AppState {
       return { ...state, accountError: null };
     case "accountAttemptStarted":
       return { ...state, accountPending: true };
+    case "settingsSaveStarted":
+      return { ...state, savingSettings: true };
+    case "deckSaveStarted":
+      return { ...state, savingDeck: true };
     default: {
       const never: never = action;
       return never;
@@ -177,16 +183,40 @@ function reduceServerMessage(state: AppState, msg: ServerMessage): AppState {
         },
       };
 
-    // Task 6 builds the admin and creator panels' own state from these; for now they only
-    // need to exist so the switch stays exhaustive against the protocol.
     case "settings":
-      return state;
+      // A `settings` message answers both a plain `settingsRequest` (opening the panel)
+      // and a `settingsSave` — only the latter should raise a notice (§9).
+      return {
+        ...state,
+        adminSettings: { settings: msg.settings, updatedAt: msg.updatedAt, updatedBy: msg.updatedBy },
+        savingSettings: false,
+        adminNotice: state.savingSettings
+          ? { text: "Settings saved.", seq: (state.adminNotice?.seq ?? 0) + 1 }
+          : state.adminNotice,
+      };
 
     case "deck":
-      return state;
+      // Same reasoning as `settings`, above.
+      return {
+        ...state,
+        adminDeck: { cards: msg.cards, total: msg.total, updatedAt: msg.updatedAt, updatedBy: msg.updatedBy },
+        savingDeck: false,
+        adminNotice: state.savingDeck
+          ? { text: "Deck saved.", seq: (state.adminNotice?.seq ?? 0) + 1 }
+          : state.adminNotice,
+      };
 
     case "adminError":
-      return state;
+      return {
+        ...state,
+        savingSettings: false,
+        savingDeck: false,
+        adminError: {
+          code: msg.code,
+          message: msg.message,
+          seq: (state.adminError?.seq ?? 0) + 1,
+        },
+      };
 
     default: {
       const never: never = msg;

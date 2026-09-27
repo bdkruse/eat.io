@@ -38,6 +38,32 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
   ...over,
 });
 
+const settingsMessage = (over: Partial<Extract<ServerMessage, { type: "settings" }>> = {}) => ({
+  type: "settings" as const,
+  settings: { roundCount: 20, turnSeconds: 20, handSize: 5 },
+  updatedAt: null,
+  updatedBy: null,
+  ...over,
+});
+
+const deckMessage = (over: Partial<Extract<ServerMessage, { type: "deck" }>> = {}) => ({
+  type: "deck" as const,
+  cards: [
+    { id: "add1x1", name: "Add One Food To One Tray", action: "add" as const, amount: 1, targets: 1, copies: 5 },
+  ],
+  total: 5,
+  updatedAt: null,
+  updatedBy: null,
+  ...over,
+});
+
+const adminErrorMessage = (over: Partial<Extract<ServerMessage, { type: "adminError" }>> = {}) => ({
+  type: "adminError" as const,
+  code: "INVALID_SETTINGS" as const,
+  message: "Round count must be a whole number between 1 and 30.",
+  ...over,
+});
+
 test("welcome establishes identity and stores the reconnect token", () => {
   const state = welcomed();
   expect(state.identity).toEqual({ playerId: "p1", sessionToken: "tok" });
@@ -355,4 +381,86 @@ test("an expired resume returns to the pre-connect menu with no name invented fo
   expect(state.accountPending).toBe(false);
   expect(state.name).toBe("");
   expect(selectScreen(state)).toBe("connect");
+});
+
+test("settingsSaveStarted marks a settings save in flight", () => {
+  const state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  expect(state.savingSettings).toBe(true);
+});
+
+test("a settings message with no save in flight stores the settings but raises no notice", () => {
+  const state = server(welcomed(), settingsMessage());
+  expect(state.adminSettings).toEqual({
+    settings: { roundCount: 20, turnSeconds: 20, handSize: 5 },
+    updatedAt: null,
+    updatedBy: null,
+  });
+  expect(state.adminNotice).toBeNull();
+  expect(state.savingSettings).toBe(false);
+});
+
+test("a settings message answering a save clears the in-flight flag and raises a notice, re-triggering via seq on a repeat", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, settingsMessage({ updatedAt: 1_700_000_000_000, updatedBy: "Riley" }));
+  expect(state.savingSettings).toBe(false);
+  expect(state.adminSettings?.updatedBy).toBe("Riley");
+  expect(state.adminNotice).toMatchObject({ seq: 1 });
+
+  state = gameReducer(state, { kind: "settingsSaveStarted" });
+  state = server(state, settingsMessage({ updatedAt: 1_700_000_001_000, updatedBy: "Riley" }));
+  expect(state.adminNotice?.seq).toBe(2);
+});
+
+test("deckSaveStarted marks a deck save in flight", () => {
+  const state = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  expect(state.savingDeck).toBe(true);
+});
+
+test("a deck message with no save in flight stores the deck but raises no notice", () => {
+  const state = server(welcomed(), deckMessage());
+  expect(state.adminDeck?.total).toBe(5);
+  expect(state.adminNotice).toBeNull();
+  expect(state.savingDeck).toBe(false);
+});
+
+test("a deck message answering a save clears the in-flight flag and raises a notice, re-triggering via seq on a repeat", () => {
+  let state = gameReducer(welcomed(), { kind: "deckSaveStarted" });
+  state = server(state, deckMessage({ updatedAt: 1_700_000_000_000, updatedBy: "Jae" }));
+  expect(state.savingDeck).toBe(false);
+  expect(state.adminDeck?.updatedBy).toBe("Jae");
+  expect(state.adminNotice).toMatchObject({ seq: 1 });
+
+  state = gameReducer(state, { kind: "deckSaveStarted" });
+  state = server(state, deckMessage({ updatedAt: 1_700_000_001_000, updatedBy: "Jae" }));
+  expect(state.adminNotice?.seq).toBe(2);
+});
+
+test("adminError surfaces and each one re-triggers via an incrementing seq, clearing any save in flight", () => {
+  let state = gameReducer(welcomed(), { kind: "settingsSaveStarted" });
+  state = server(state, adminErrorMessage());
+  expect(state.savingSettings).toBe(false);
+  expect(state.adminError).toMatchObject({ code: "INVALID_SETTINGS", seq: 1 });
+
+  state = server(state, adminErrorMessage());
+  expect(state.adminError?.seq).toBe(2);
+});
+
+test("adminError also clears a deck save in flight", () => {
+  const state = server(
+    gameReducer(welcomed(), { kind: "deckSaveStarted" }),
+    adminErrorMessage({ code: "INVALID_DECK", message: "The deck must total between 10 and 100 cards, not 5." }),
+  );
+  expect(state.savingDeck).toBe(false);
+  expect(state.adminError?.code).toBe("INVALID_DECK");
+});
+
+test("backToMenu clears the admin settings, deck, error, and notice along with everything else", () => {
+  let state = server(welcomed(), settingsMessage());
+  state = server(state, deckMessage());
+  state = server(state, adminErrorMessage());
+  state = gameReducer(state, { kind: "backToMenu" });
+  expect(state.adminSettings).toBeNull();
+  expect(state.adminDeck).toBeNull();
+  expect(state.adminError).toBeNull();
+  expect(state.adminNotice).toBeNull();
 });

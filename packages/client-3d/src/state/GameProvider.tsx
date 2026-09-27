@@ -8,7 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { ClientMessage, ServerMessage } from "@eat.io/protocol";
+import type { ClientMessage, DeckEntry, GameSettings, ServerMessage } from "@eat.io/protocol";
 import type { Appearance } from "../appearance/appearance.js";
 import { resumeServerUrl } from "../config.js";
 import { wakeServer } from "../connection/wakeServer.js";
@@ -44,6 +44,10 @@ export interface GameApi {
   setAppearance(appearance: Appearance): void;
   requestProfile(): void;
   dismissAccountError(): void;
+  requestSettings(): void;
+  saveSettings(settings: GameSettings): void;
+  requestDeck(): void;
+  saveDeck(entries: DeckEntry[]): void;
 }
 
 const GameContext = createContext<GameApi | null>(null);
@@ -193,6 +197,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setAppearance: (appearance) => send({ type: "appearanceSet", appearance }),
       requestProfile: () => send({ type: "profileRequest" }),
       dismissAccountError: () => dispatch({ kind: "dismissAccountError" }),
+      requestSettings: () => send({ type: "settingsRequest" }),
+      saveSettings: (settings) => {
+        dispatch({ kind: "settingsSaveStarted" });
+        send({
+          type: "settingsSave",
+          roundCount: settings.roundCount,
+          turnSeconds: settings.turnSeconds,
+          handSize: settings.handSize,
+        });
+      },
+      requestDeck: () => send({ type: "deckRequest" }),
+      saveDeck: (entries) => {
+        dispatch({ kind: "deckSaveStarted" });
+        send({ type: "deckSave", cards: entries });
+      },
     }),
     [state, connect, connectKeepingPending, disconnect, send],
   );

@@ -6,6 +6,8 @@ import { GameProvider, useGame } from "./state/GameProvider.js";
 import { selectScreen } from "./state/gameState.js";
 import { Stage } from "./scene/Stage.js";
 import { LocalStateProvider, useLocalState } from "./state/LocalState.js";
+import { AdminPanel } from "./ui/AdminPanel.js";
+import { CreatorPanel } from "./ui/CreatorPanel.js";
 import { CustomizePanel } from "./ui/CustomizePanel.js";
 import { Fade } from "./ui/Fade.js";
 import { GameHud } from "./ui/GameHud.js";
@@ -19,17 +21,20 @@ import { TopBar } from "./ui/TopBar.js";
 /** Panels over the canvas. Each fades on its own, so screens cross-dissolve as the camera moves. */
 function Interface() {
   const { state } = useGame();
-  const { customizing, profileOpen } = useLocalState();
+  const { openPanel } = useLocalState();
   // Which of the menu's three tabs is showing — lifted up here so the top bar's guest
   // "Log in" button can switch the menu to it from outside (§11).
   const [menuTab, setMenuTab] = useState<MenuTab>("guest");
   const screen = selectScreen(state);
   const inMenus = screen === "connect" || screen === "queue";
-  const editingLook = customizing && inMenus;
-  // The profile panel is reachable from the menu, the queue, and the game-over screen —
-  // everywhere the top bar's profile button shows (hidden only during a game).
-  const viewingProfile = profileOpen && screen !== "game";
-  const showScreenPanel = !editingLook && !viewingProfile;
+  const editingLook = openPanel === "customize" && inMenus;
+  // The profile, admin, and creator panels are all reachable from the menu, the queue, and
+  // the game-over screen — everywhere the top bar's own buttons for them show (hidden only
+  // during a game).
+  const viewingProfile = openPanel === "profile" && screen !== "game";
+  const viewingAdmin = openPanel === "admin" && screen !== "game";
+  const viewingCreator = openPanel === "creator" && screen !== "game";
+  const showScreenPanel = !editingLook && !viewingProfile && !viewingAdmin && !viewingCreator;
 
   return (
     <div className="interface">
@@ -46,6 +51,12 @@ function Interface() {
       </Fade>
       <Fade show={viewingProfile} className="dock dock--left">
         <ProfilePanel />
+      </Fade>
+      <Fade show={viewingAdmin} className="dock dock--left">
+        <AdminPanel />
+      </Fade>
+      <Fade show={viewingCreator} className="dock dock--left">
+        <CreatorPanel />
       </Fade>
       <Fade show={screen === "game" || screen === "gameOver"} className="dock dock--top">
         <GameHud />

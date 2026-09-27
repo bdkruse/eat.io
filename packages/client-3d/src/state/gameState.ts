@@ -1,6 +1,9 @@
 import type {
   AccountErrorCode,
+  AdminErrorCode,
   CardView,
+  DeckCard,
+  GameSettings,
   Profile,
   RejectionCode,
   Result,
@@ -30,6 +33,36 @@ export interface AccountNotice {
   seq: number;
 }
 
+/** The admin panel's own view of the three game settings, stored verbatim from the
+ *  server's `settings` message (§9). */
+export interface AdminSettingsState {
+  settings: GameSettings;
+  updatedAt: number | null;
+  updatedBy: string | null;
+}
+
+/** The creator panel's own view of the default deck, stored verbatim from the server's
+ *  `deck` message — every catalog card with its copies (§9). */
+export interface AdminDeckState {
+  cards: DeckCard[];
+  total: number;
+  updatedAt: number | null;
+  updatedBy: string | null;
+}
+
+export interface AdminErrorState {
+  code: AdminErrorCode;
+  message: string;
+  /** Monotonic, so the toast can re-trigger on a repeat of the same code without a clock. */
+  seq: number;
+}
+
+export interface AdminNotice {
+  text: string;
+  /** Monotonic, so a repeat of the same notice can re-trigger without a clock. */
+  seq: number;
+}
+
 export interface AppState {
   connection: ConnectionState;
   /** What the player typed. Survives "Back to menu" so the field is prefilled. */
@@ -54,6 +87,19 @@ export interface AppState {
    * identity is set but account is still null even for a login or a token resume).
    */
   accountPending: boolean;
+  /** The admin panel's settings, or null before the first `settings` message arrives. */
+  adminSettings: AdminSettingsState | null;
+  /** The creator panel's deck, or null before the first `deck` message arrives. */
+  adminDeck: AdminDeckState | null;
+  adminError: AdminErrorState | null;
+  adminNotice: AdminNotice | null;
+  /** True from `saveSettings` until the answering `settings` or `adminError` arrives —
+   *  the same shape as `accountPending` above, and for the same reason: it is what tells
+   *  the reducer a `settings` message is a save's answer rather than the response to a
+   *  plain `settingsRequest`, so only a save raises `adminNotice`. */
+  savingSettings: boolean;
+  /** Same reasoning as `savingSettings`, for `saveDeck` and the `deck` message. */
+  savingDeck: boolean;
 }
 
 export const initialAppState: AppState = {
@@ -70,6 +116,12 @@ export const initialAppState: AppState = {
   accountError: null,
   accountNotice: null,
   accountPending: false,
+  adminSettings: null,
+  adminDeck: null,
+  adminError: null,
+  adminNotice: null,
+  savingSettings: false,
+  savingDeck: false,
 };
 
 export type Screen = "connect" | "queue" | "game" | "gameOver";
