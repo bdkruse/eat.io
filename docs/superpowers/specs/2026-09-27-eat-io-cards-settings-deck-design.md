@@ -290,3 +290,139 @@ the two tables, and never touches accounts. It is not a reseed.
 - Per-room or per-player decks.
 - More creator tools beyond the deck editor.
 - A settings history.
+
+---
+
+## 13. Lunch Money and the shop (added 2026-09-27)
+
+### 13.1 Decisions (owner-approved)
+
+| Question | Decision |
+|---|---|
+| Name | Lunch Money, shown with a coin icon |
+| Earning | 1 Lunch Money for each food a logged-in player eats in a finished game, the same count as points scored |
+| Existing accounts | Start with Lunch Money equal to their points scored so far |
+| Spending | A shop of new cosmetics. Everything in Customize today stays free |
+| First items | New extras, new colors, and some silly or slightly outrageous items |
+| Prices | 30–100 Lunch Money, set by the Creator in a creator shop tool, where items can also be turned off |
+| Guests | They earn nothing and cannot buy |
+
+### 13.2 Items
+
+Items are defined in code as a catalog, like cards. Each has an id, a name, a kind, the
+appearance value it unlocks, and a default price. The Creator's saved price and
+availability override the defaults.
+
+| id | Name | Kind | Default price |
+|---|---|---|---|
+| `extra.sunglasses` | Sunglasses | extra | 30 |
+| `extra.bowTie` | Bow Tie | extra | 30 |
+| `extra.headphones` | Headphones | extra | 40 |
+| `extra.chefHat` | Chef Hat | extra | 50 |
+| `extra.crown` | Crown | extra | 100 |
+| `extra.propellerCap` | Propeller Cap, with a spinning propeller | extra (silly) | 60 |
+| `extra.trafficCone` | Traffic Cone Hat | extra (silly) | 70 |
+| `extra.vikingHelmet` | Viking Helmet | extra (silly) | 80 |
+| `extra.alienAntennae` | Alien Antennae | extra (silly) | 60 |
+| `extra.bananaHat` | Banana Hat | extra (silly) | 90 |
+| `shirt.gold` | Gold Shirt | shirt color | 100 |
+| `shirt.neonLime` | Neon Lime Shirt | shirt color | 40 |
+| `shirt.midnight` | Midnight Shirt | shirt color | 30 |
+| `hair.electricBlue` | Electric Blue Hair | hair color | 50 |
+| `hair.bubblegum` | Bubblegum Pink Hair | hair color | 50 |
+| `hair.silver` | Silver Hair | hair color | 40 |
+
+Extras stay one slot, like today's accessory. The appearance option lists grow by these
+values, and the kid model draws each new extra from primitives.
+
+### 13.3 Face customization (added the same day)
+
+Three new appearance options join Customize: eye shape, eye color, and mouth shape. Most
+are free, and a few are shop items.
+
+| Option | Free values | Shop values (price) |
+|---|---|---|
+| Eye shape | Round (default), Almond, Sleepy, Sparkly | Star Eyes (60), Heart Eyes (60) |
+| Eye color | Dark Brown (default), Brown, Hazel, Green, Blue, Gray | Violet (40), Glowing Gold (80) |
+| Mouth shape | Smile (default), Big Grin, Calm, Smirk | Tongue Out (50), Vampire Fangs (70) |
+
+The shop ids follow the pattern above: `eyes.star`, `eyes.heart`, `eyeColor.violet`,
+`eyeColor.gold`, `mouth.tongue`, `mouth.fangs`.
+
+- **Eyes:** each eye shows its color with a dark pupil and a highlight. Blinking still
+  works for every shape.
+- **Mouth:** the mouth shape sets the resting mouth. The open mouth for talking and
+  chomping stays as it is.
+- **Stored looks:** a look saved before this change has no face fields. It reads with the
+  defaults (Round, Dark Brown, Smile), so no saved appearance is lost. The protocol
+  schema supplies these defaults.
+
+### 13.4 Rules
+
+- **The shop:** it shows every available item with its price, and marks the ones you
+  own. Buy is disabled for an item you own, and for one that costs more than your
+  balance.
+- **Buying:** it is one server transaction. The server makes sure of four things: you are
+  logged in, the item is available, you do not own it, and you can afford it. Then it deducts
+  the price and records the item as yours. Nothing is refunded or sold back.
+- **Customize:** shop values you own appear in the option rows with the free ones. Values
+  you do not own show a lock and the price, and choosing one opens the shop at that item.
+- **Ownership on `appearanceSet`:** the server refuses a look that uses an item the
+  player does not own, with `accountError` `NOT_OWNED`. A guest cannot use shop items
+  at all.
+- **An item turned off by the Creator** leaves the shop. Players who own it keep it and
+  can still wear it.
+- **The Creator's shop tool:** one row per item with a price field (1–1000), an
+  available switch, and Save. It uses a new permission, `shop.edit`, which only the
+  Creator has.
+
+### 13.5 Storage (migration 3)
+
+- **`accounts`** gains `lunch_money INTEGER NOT NULL DEFAULT 0`, backfilled from
+  `points_scored`.
+- **`owned_items`** has `account_id` and `item_id`, with the pair as the primary key, and
+  `purchased_at`.
+- **`shop_items`** has `item_id` as the primary key, `price`, and `available`. A missing
+  row means the item uses its code defaults.
+- **Game end:** `recordGames` adds the score to `lunch_money` in the same transaction as
+  the stats.
+
+### 13.6 Protocol additions (still version 4)
+
+- **`Profile`** gains `lunchMoney` and `ownedItems: string[]`.
+- **Client messages:** `shopRequest`, `shopBuy { itemId }`, `shopConfigRequest`, and
+  `shopConfigSave { items: { itemId, price, available }[] }`.
+- **Server messages:** `shop { items, balance }` and `shopConfig { items, updatedAt,
+  updatedBy }`. Each item carries `id, name, kind, price, available, owned`.
+- **Errors:** a failed buy answers `accountError` with `NOT_LOGGED_IN`, `NOT_AVAILABLE`,
+  `ALREADY_OWNED`, or `NOT_ENOUGH`. A creator error answers `adminError`.
+- **Game over:** each logged-in player gets their updated `profile`, as today. The
+  game-over screen shows "+N Lunch Money" from the difference.
+
+### 13.7 Client
+
+- **The top bar** shows the Lunch Money balance next to the profile button for a
+  logged-in player.
+- **The profile panel** shows the balance.
+- **A "Shop" button** in the top bar opens a shop panel for a logged-in player. The camera
+  shows your kid, and tapping an item previews it on your kid before you buy.
+- **The game-over panel** shows the Lunch Money earned.
+- **The creator panel** gains a second tab, Shop, next to the deck editor.
+
+### 13.8 Testing
+
+- **Store:**
+  - The migration 3 backfill equals points scored.
+  - A buy deducts once and records ownership.
+  - A buy refuses an item already owned, an unaffordable one, and an unavailable one.
+  - Two quick buys cannot overspend.
+  - `recordGames` adds Lunch Money.
+- **Lobby:**
+  - Guests are refused.
+  - `appearanceSet` with an unowned item is refused, and an owned item is accepted.
+  - Turning an item off hides it from the shop but keeps it for its owners.
+  - Only the Creator can save the shop config.
+- **Protocol:** an appearance without the face fields parses with the defaults.
+- **Client:** the reducer, and the locked and owned option rows.
+- **In the browser:** earn Lunch Money in a game, buy an item, and wear it. The opponent
+  sees it.
