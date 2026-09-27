@@ -108,6 +108,24 @@ test("roomState without extraServings on you or opponent fails", () => {
   expect(() => parseServerMessage(viewOpponent)).toThrow();
 });
 
+test("a tray's bonus is optional and, when present, a positive whole number", () => {
+  const view = baseRoomState() as Record<string, unknown>;
+  const you = view["you"] as Record<string, unknown>;
+  you["table"] = [
+    { id: "t1", value: 2 },
+    { id: "t2", value: 5, bonus: 2 },
+  ];
+  const parsed = parseServerMessage(view);
+  if (parsed.type !== "roomState") throw new Error("expected roomState");
+  expect(parsed.you.table[0]).not.toHaveProperty("bonus");
+  expect(parsed.you.table[1]!.bonus).toBe(2);
+
+  for (const badBonus of [0, -1, 1.5]) {
+    you["table"] = [{ id: "t1", value: 2, bonus: badBonus }];
+    expect(() => parseServerMessage(view)).toThrow();
+  }
+});
+
 test("CardView with targets: 0 parses, and turns is optional", () => {
   const view = baseRoomState() as Record<string, unknown>;
   const you = view["you"] as Record<string, unknown>;

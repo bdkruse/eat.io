@@ -23,6 +23,9 @@ export interface Card extends CardDefinition {
 export interface Tray {
   id: string;
   value: number;
+  /** Present only on a tray that arrived boosted: the extra servings folded into `value`
+   *  when it arrived. Never 0 — an unboosted tray has no `bonus` at all. */
+  bonus?: number;
 }
 
 /** A player's committed choice for the round. `discard` is the idle auto-move. */

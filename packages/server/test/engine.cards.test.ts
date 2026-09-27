@@ -190,3 +190,54 @@ test("the view shows both players' extra servings and a servings card's turns, a
   };
   expect(() => parseServerMessage(roomState)).not.toThrow();
 });
+
+function newestTray(state: GameState, playerId: PlayerId) {
+  return state.players[playerId]!.table.at(-1)!;
+}
+
+test("a servings card played from an empty list marks this round's and the next round's arriving trays with their bonus", () => {
+  const played = autoMove(playCard(game(), "p1", copyOf("servings2x2")), "p2");
+
+  const afterFirstRound = resolveRound(played, flatTrayRules).state;
+  expect(newestTray(afterFirstRound, "p1").bonus).toBe(2);
+
+  const afterSecondRound = discardBoth(afterFirstRound);
+  expect(newestTray(afterSecondRound, "p1").bonus).toBe(2);
+
+  const afterThirdRound = discardBoth(afterSecondRound);
+  expect(newestTray(afterThirdRound, "p1")).not.toHaveProperty("bonus");
+});
+
+test("stacked servings cards mark the arriving tray with their sum", () => {
+  const firstPlayed = autoMove(playCard(game(), "p1", copyOf("servings2x2", 1)), "p2");
+  const afterFirstRound = resolveRound(firstPlayed, flatTrayRules).state;
+
+  const secondPlayed = autoMove(playCard(afterFirstRound, "p1", copyOf("servings2x2", 2)), "p2");
+  const afterSecondRound = resolveRound(secondPlayed, flatTrayRules).state;
+  expect(newestTray(afterSecondRound, "p1").bonus).toBe(4);
+});
+
+test("a tray arriving with no bonus carries no bonus field, in the state or the view", () => {
+  const start = game();
+  for (const player of Object.values(start.players)) {
+    for (const tray of player.table) expect(tray).not.toHaveProperty("bonus");
+  }
+
+  const played = autoMove(playCard(start, "p1", copyOf("servings2x2")), "p2");
+  const after = resolveRound(played, flatTrayRules).state;
+  expect(newestTray(after, "p2")).not.toHaveProperty("bonus");
+
+  const ownView = viewFor(after, "p1", null);
+  expect(ownView.you.table.at(-1)).toEqual({ id: newestTray(after, "p1").id, value: 3, bonus: 2 });
+  expect(ownView.opponent.table.at(-1)).not.toHaveProperty("bonus");
+  const opponentView = viewFor(after, "p2", null);
+  expect(opponentView.opponent.table.at(-1)).toMatchObject({ bonus: 2 });
+  for (const tray of ownView.you.table.slice(0, -1)) expect(tray).not.toHaveProperty("bonus");
+
+  const roomState = {
+    ...ownView,
+    you: { ...ownView.you, appearance: null },
+    opponent: { ...ownView.opponent, appearance: null },
+  };
+  expect(() => parseServerMessage(roomState)).not.toThrow();
+});

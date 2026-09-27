@@ -32,6 +32,9 @@ export const CardViewSchema = z.object({
 export const TrayViewSchema = z.object({
   id: z.string(),
   value: z.number().int(),
+  /** Present only on a tray that arrived boosted: the extra servings already folded into
+   *  `value` when it arrived. Absent on every other tray. */
+  bonus: z.number().int().positive().optional(),
 });
 
 export const ResultSchema = z.object({

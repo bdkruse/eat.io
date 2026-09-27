@@ -1,4 +1,4 @@
-import type { OpponentView, RejectionCode, Result, RoomStateMessage, Seat, YouView } from "@eat.io/protocol";
+import type { OpponentView, RejectionCode, Result, RoomStateMessage, Seat, TrayView, YouView } from "@eat.io/protocol";
 import type { GameState, PlayerId, Submission } from "./state.js";
 import { pick } from "../util/rng.js";
 import type { Rng } from "../util/rng.js";
@@ -131,7 +131,11 @@ export function resolveRound(state: GameState, rules: Rules): { state: GameState
     // The next extra serving rides on the arriving tray, then leaves the list.
     const [servingBonus = 0, ...laterServings] = extraServings;
     extraServings = laterServings;
-    const freshTray: Tray = { id: String(nextTrayId++), value: randomValue + servingBonus };
+    const freshTray: Tray = {
+      id: String(nextTrayId++),
+      value: randomValue + servingBonus,
+      ...(servingBonus > 0 ? { bonus: servingBonus } : {}),
+    };
     table = [...table, freshTray];
 
     players[p.id] = { ...p, hand, deck, table, score, extraServings, submission: null };
@@ -194,6 +198,11 @@ export type GameView = Omit<RoomStateMessage, "you" | "opponent"> & {
   opponent: Omit<OpponentView, "appearance">;
 };
 
+/** A tray as sent on the wire; `bonus` only when it arrived boosted. */
+function trayView(tray: Tray): TrayView {
+  return { id: tray.id, value: tray.value, ...(tray.bonus === undefined ? {} : { bonus: tray.bonus }) };
+}
+
 export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number | null): GameView {
   const you = state.players[playerId];
   if (!you) throw new Error(`viewFor: unknown player ${playerId}`);
@@ -211,7 +220,7 @@ export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number
       name: you.name,
       score: you.score,
       submitted: you.submission !== null,
-      table: you.table.map((t) => ({ id: t.id, value: t.value })),
+      table: you.table.map(trayView),
       hand: you.hand.map((c) => ({
         id: c.id,
         instanceId: c.instanceId,
@@ -229,7 +238,7 @@ export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number
       score: opponent.score,
       submitted: opponent.submission !== null,
       handCount: opponent.hand.length,
-      table: opponent.table.map((t) => ({ id: t.id, value: t.value })),
+      table: opponent.table.map(trayView),
       extraServings: [...opponent.extraServings],
     },
   };

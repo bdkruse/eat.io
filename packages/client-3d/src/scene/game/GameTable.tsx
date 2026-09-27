@@ -149,8 +149,8 @@ function RoomLayer({
   const yourTrays = useEatenTrays(room.you.table);
   const opponentTrays = useEatenTrays(room.opponent.table);
   const biting = yourTrays.biting || opponentTrays.biting;
-  const yourBoostedTrayId = useBoostedTray(room.you.table, room.you.extraServings);
-  const opponentBoostedTrayId = useBoostedTray(room.opponent.table, room.opponent.extraServings);
+  const yourBoostedTrayId = useBoostedTray(room.you.table);
+  const opponentBoostedTrayId = useBoostedTray(room.opponent.table);
   // A logged-in opponent's saved look wins; otherwise the same name-derived look as a
   // guest opponent always gets (§11).
   const opponentLook = useMemo(

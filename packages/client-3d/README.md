@@ -93,8 +93,8 @@ Food To Every Tray" shows `+1 all`. "Extra Servings" shows `+2 ×2`.
 Upcoming extra servings show in a small marker at the foot of each player's row of trays,
 for example "+2, +2". The first number rides on the next tray to arrive. The marker
 shrinks as the trays arrive. It hides once the list is empty. A tray that arrives with a
-bonus glows gold for a moment as it slides on. The server adds the bonus. The client only
-shows it.
+bonus glows gold for a moment as it slides on. The server adds the bonus and marks that
+tray with a `bonus` field. The client only shows it.
 
 ## Detail levels
 

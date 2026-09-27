@@ -1,24 +1,17 @@
 import type { TrayView } from "@eat.io/protocol";
 
-/** One player's table and upcoming bonuses at a single moment, as carried on `roomState`. */
-export interface BoardSnapshot {
-  table: TrayView[];
-  extraServings: number[];
-}
-
 /**
- * The id of the tray that just arrived already covered by a pending bonus, or null when
- * nothing arrived boosted this update.
+ * The id of the tray that just arrived boosted, or null when nothing arrived boosted this
+ * update.
  *
- * Detected purely from two consecutive board snapshots — the tray that is on `current`
- * but was not on `previous`, when `previous`'s first upcoming bonus was greater than zero.
- * The server has already folded that bonus into the tray's value (§4.3); this never
- * recomputes it, only decides whether to flag the tray that just arrived.
+ * Detected purely from two consecutive tables — the tray that is on `current` but was not
+ * on `previous`, when the server marked it with a `bonus`. The server has already folded
+ * that bonus into the tray's value (§4.3) and marks the tray itself, so a card played this
+ * round from an empty list is caught too, on either side of the table. This never
+ * recomputes the bonus, only decides whether to flag the tray that just arrived.
  */
-export function detectBoostedTrayId(previous: BoardSnapshot, current: BoardSnapshot): string | null {
-  const pendingBonus = previous.extraServings[0] ?? 0;
-  if (pendingBonus <= 0) return null;
-  const previousIds = new Set(previous.table.map((tray) => tray.id));
-  const arrived = current.table.find((tray) => !previousIds.has(tray.id));
-  return arrived ? arrived.id : null;
+export function detectBoostedTrayId(previous: TrayView[], current: TrayView[]): string | null {
+  const previousIds = new Set(previous.map((tray) => tray.id));
+  const arrived = current.find((tray) => !previousIds.has(tray.id));
+  return arrived && (arrived.bonus ?? 0) > 0 ? arrived.id : null;
 }

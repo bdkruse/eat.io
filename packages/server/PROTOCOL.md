@@ -114,7 +114,8 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "score": number,             // total eaten so far
     "submitted": boolean,        // have you committed this round
     "appearance": Appearance | null,   // null if never set
-    "table": [ { "id": string, "value": number }, ... ],   // front tray first
+    "table": [ { "id": string, "value": number,
+                 "bonus?": number }, ... ],   // front tray first; bonus: see below
     "hand": [ { "id": string, "instanceId": string, "name": string,
                "action": "add" | "multiply" | "addAll" | "extraServings",
                "amount": number, "targets": number,
@@ -128,7 +129,8 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "submitted": boolean,
     "appearance": Appearance | null,   // null if never set
     "handCount": number,         // COUNT only — never the opponent's cards
-    "table": [ { "id": string, "value": number }, ... ],
+    "table": [ { "id": string, "value": number,
+                 "bonus?": number }, ... ],
     "extraServings": number[]     // public, same shape as `you.extraServings`
   }
 }
@@ -164,7 +166,12 @@ in this order:
    Overlapping cards add up.
 2. **The front tray is eaten**, as today.
 3. **A fresh tray arrives.** Its value is the random value plus `extraServings[0]`; that
-   entry is then removed. An empty list adds nothing.
+   entry is then removed. An empty list adds nothing. A tray that arrived with a bonus
+   carries `bonus`, the amount already folded into its `value`, for as long as it stays on
+   the table. Every other tray has no `bonus` field. Use it to mark a tray that just
+   arrived boosted: a card played this round has already added to and used up
+   `extraServings[0]` by the time the next `roomState` is sent, so the list alone cannot
+   tell you.
 
 A card played this round boosts the tray that arrives at the end of this round, and the
 `turns − 1` trays after it. Both players' lists are public — render your opponent's the

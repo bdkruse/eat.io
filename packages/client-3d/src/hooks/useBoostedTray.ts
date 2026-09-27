@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { TrayView } from "@eat.io/protocol";
-import { detectBoostedTrayId, type BoardSnapshot } from "../scene/game/boostedTray.js";
+import { detectBoostedTrayId } from "../scene/game/boostedTray.js";
 
 /** How long a boosted tray keeps its highlight once it slides on. */
 const BOOST_HIGHLIGHT_MS = 1500;
@@ -11,14 +11,14 @@ const BOOST_HIGHLIGHT_MS = 1500;
  * consecutive-snapshots approach as `useEatenTrays` — and never recomputes the bonus
  * itself, only flags the tray it already landed on (§9).
  */
-export function useBoostedTray(table: TrayView[], extraServings: number[]): string | null {
-  const previous = useRef<BoardSnapshot>({ table, extraServings });
+export function useBoostedTray(table: TrayView[]): string | null {
+  const previous = useRef<TrayView[]>(table);
   const [boostedTrayId, setBoostedTrayId] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const detected = detectBoostedTrayId(previous.current, { table, extraServings });
-    previous.current = { table, extraServings };
+    const detected = detectBoostedTrayId(previous.current, table);
+    previous.current = table;
     if (detected) {
       setBoostedTrayId(detected);
       if (timer.current) clearTimeout(timer.current);
@@ -27,7 +27,7 @@ export function useBoostedTray(table: TrayView[], extraServings: number[]): stri
         setBoostedTrayId(null);
       }, BOOST_HIGHLIGHT_MS);
     }
-  }, [table, extraServings]);
+  }, [table]);
 
   useEffect(
     () => () => {
