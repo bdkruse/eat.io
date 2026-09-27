@@ -7,5 +7,10 @@
  *  0 and gains optional `turns`; `roomState.you`/`opponent` carry
  *  `extraServings`; new `settings.edit`/`deck.edit` permissions; game settings
  *  and deck editor messages (`settingsRequest`/`settingsSave`/`deckRequest`/
- *  `deckSave` and `settings`/`deck`/`adminError`). */
+ *  `deckSave` and `settings`/`deck`/`adminError`). Also in v4: Lunch Money
+ *  (`Profile.lunchMoney`); the shop and shop editor messages (`shopRequest`/
+ *  `shopBuy`/`shopConfigRequest`/`shopConfigSave` and `shop`/`shopConfig`); the
+ *  `shop.edit` permission; the face fields on `Appearance` (`eyeShape`/`eyeColor`/
+ *  `mouthShape`); the `accountError` codes `NOT_OWNED`/`NOT_AVAILABLE`/
+ *  `ALREADY_OWNED`/`NOT_ENOUGH`; and the optional `TrayView.bonus`. */
 export const PROTOCOL_VERSION = 4;
