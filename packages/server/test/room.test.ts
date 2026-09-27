@@ -82,8 +82,10 @@ test("the game ends after roundCount rounds with a per-player gameOver", () => {
   for (let r = 0; r < 10; r++) {
     for (const id of ["p1", "p2"] as const) {
       const v = h.lastState(id);
-      const card = v.you.hand.find((c) => c.targets === 1)!;
-      h.room.submit(id, { cardInstanceId: card.instanceId, targetTrayIds: [v.you.table[0]!.id] });
+      // Any card, with as many trays as it needs (a table-effect card needs none).
+      const card = v.you.hand[0]!;
+      const targetTrayIds = v.you.table.slice(0, card.targets).map((tray) => tray.id);
+      h.room.submit(id, { cardInstanceId: card.instanceId, targetTrayIds });
     }
   }
   expect(h.room.phase).toBe("finished");

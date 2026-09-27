@@ -134,6 +134,13 @@ export class Lobby {
         session.send({ type: "profile", profile: this.deps.accounts.profileOf(account) });
         break;
       }
+      // Placeholders until the settings and deck handlers land.
+      case "settingsRequest":
+      case "settingsSave":
+      case "deckRequest":
+      case "deckSave":
+        session.send({ type: "adminError", code: "FORBIDDEN", message: "Not available yet." });
+        break;
       default: {
         const never: never = msg;
         void never;

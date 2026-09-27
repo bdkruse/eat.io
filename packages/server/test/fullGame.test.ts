@@ -1,8 +1,10 @@
 import { expect, test } from "vitest";
 import { parseServerMessage } from "@eat.io/protocol";
 import { createGame } from "../src/engine/deal.js";
-import { defaultRules } from "../src/engine/rules/index.js";
+import { defaultRules, makeRules } from "../src/engine/rules/index.js";
+import type { GameState, PlayerId } from "../src/engine/state.js";
 import {
+  applyAction,
   autoMove,
   everyoneSubmitted,
   isGameOver,
@@ -56,4 +58,53 @@ test("a full game terminates after roundCount rounds with valid state throughout
 test("same seed produces identical final scores (reproducible)", () => {
   const scores = (seed: number) => Object.values(play(seed).players).map((p) => p.score);
   expect(scores(11)).toEqual(scores(11));
+});
+
+test("a full game that plays every card type at least once plays to the end", () => {
+  // Two of every catalog card, so the deck runs out and is rebuilt mid-game too.
+  const rules = makeRules({ deck: defaultRules.cards.map((card) => ({ cardId: card.id, copies: 2 })) });
+  let state: GameState = createGame({
+    roomId: "r1",
+    seats: [
+      { id: "p1", seat: "a", name: "Riley" },
+      { id: "p2", seat: "b", name: "Sam" },
+    ],
+    rules,
+    roundCount: 20,
+    seed: 3,
+  });
+  const playedCardIds = new Set<string>();
+
+  /** Plays a card type not yet played when one is in hand, else the first card. */
+  const playSomething = (current: GameState, playerId: PlayerId): GameState => {
+    const player = current.players[playerId]!;
+    const card = player.hand.find((handCard) => !playedCardIds.has(handCard.id)) ?? player.hand[0]!;
+    playedCardIds.add(card.id);
+    const targetTrayIds = player.table.slice(0, card.targets).map((tray) => tray.id);
+    return applyAction(current, playerId, { cardInstanceId: card.instanceId, targetTrayIds });
+  };
+
+  let guard = 0;
+  while (!isGameOver(state)) {
+    state = playSomething(playSomething(state, "p1"), "p2");
+    expect(everyoneSubmitted(state)).toBe(true);
+    ({ state } = resolveRound(state, rules));
+    for (const playerId of ["p1", "p2"]) {
+      const view = viewFor(state, playerId, null);
+      const roomState = {
+        ...view,
+        you: { ...view.you, appearance: null },
+        opponent: { ...view.opponent, appearance: null },
+      };
+      expect(() => parseServerMessage(roomState)).not.toThrow();
+    }
+    if (++guard > 100) throw new Error("game did not terminate");
+  }
+
+  expect(state.roundIndex).toBe(20);
+  expect([...playedCardIds].sort()).toEqual(rules.cards.map((card) => card.id).sort());
+  for (const player of Object.values(state.players)) {
+    expect(player.hand.length).toBe(rules.config.handSize);
+    expect(player.table.length).toBe(rules.config.tableLength);
+  }
 });

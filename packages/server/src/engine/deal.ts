@@ -48,6 +48,7 @@ export function createGame(opts: CreateGameOptions): GameState {
       deck,
       score: 0,
       submission: null,
+      extraServings: [],
     };
   }
 

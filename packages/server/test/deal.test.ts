@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { createGame } from "../src/engine/deal.js";
+import { deckTotal } from "@eat.io/protocol";
 import { defaultRules } from "../src/engine/rules/index.js";
 
 const opts = () => ({
@@ -18,7 +19,7 @@ test("each player gets exactly handSize cards and tableLength trays", () => {
   for (const p of Object.values(g.players)) {
     expect(p.hand.length).toBe(defaultRules.config.handSize);
     expect(p.table.length).toBe(defaultRules.config.tableLength);
-    expect(p.deck.length).toBe(defaultRules.config.deckSize - defaultRules.config.handSize);
+    expect(p.deck.length).toBe(deckTotal([...defaultRules.config.deck]) - defaultRules.config.handSize);
     expect(p.score).toBe(0);
     expect(p.submission).toBeNull();
     expect(p.connected).toBe(true);

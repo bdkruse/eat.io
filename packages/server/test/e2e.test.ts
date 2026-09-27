@@ -55,11 +55,12 @@ test("two clients matchmake and play a full game to gameOver", async () => {
   for (let round = 0; round < 10; round++) {
     for (const c of [a, b]) {
       const v = c.lastRoomState()!;
-      const card = v.you.hand.find((k) => k.targets === 1)!;
+      // Any card, with as many trays as it needs (a table-effect card needs none).
+      const card = v.you.hand[0]!;
       c.send({
         type: "submitTurn",
         cardInstanceId: card.instanceId,
-        targetTrayIds: [v.you.table[0]!.id],
+        targetTrayIds: v.you.table.slice(0, card.targets).map((tray) => tray.id),
       });
     }
     await a.next(reachedRound(round + 1));

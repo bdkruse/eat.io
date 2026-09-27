@@ -9,7 +9,10 @@ export interface CardDefinition {
   name: string;
   action: CardAction;
   amount: number;
+  /** 0 for a table effect (`addAll`, `extraServings`), which takes no tray choice. */
   targets: number;
+  /** Present only on `extraServings`: how many arriving trays it boosts. */
+  turns?: number;
 }
 
 /** One dealt copy of a definition. Two copies share `id` but never `instanceId`. */
@@ -40,6 +43,8 @@ export interface PlayerState {
   deck: Card[];
   score: number;
   submission: Submission | null;
+  /** Upcoming bonuses. Index 0 is added to the next tray to arrive; never holds a 0. */
+  extraServings: number[];
 }
 
 export interface GameState {

@@ -94,15 +94,18 @@ export function resolveRound(state: GameState, rules: Rules): { state: GameState
   const ordered = Object.values(state.players).sort((a, b) => a.seat.localeCompare(b.seat));
 
   for (const p of ordered) {
-    let { hand, deck, table, score } = p;
+    let { hand, deck, table, score, extraServings } = p;
     const sub = p.submission;
 
     if (sub) {
       if (!sub.discard) {
         const card = hand.find((c) => c.instanceId === sub.cardInstanceId);
         if (card) {
+          // A tray effect changes the chosen trays; a table effect (targets 0) chooses
+          // none and changes the table. Each rule leaves the other kind's card alone.
           const targets = new Set(sub.targetTrayIds);
           table = table.map((t) => (targets.has(t.id) ? rules.applyEffect(t, card) : t));
+          ({ table, extraServings } = rules.applyTableEffect({ table, extraServings }, card));
         }
       }
       const idx = hand.findIndex((c) => c.instanceId === sub.cardInstanceId);
@@ -123,12 +126,15 @@ export function resolveRound(state: GameState, rules: Rules): { state: GameState
       events.push({ type: "trayEaten", playerId: p.id, trayId: front.id, value: front.value });
     }
 
-    const [value, rngValue] = rules.freshTrayValue(rng);
+    const [randomValue, rngValue] = rules.freshTrayValue(rng);
     rng = rngValue;
-    const freshTray: Tray = { id: String(nextTrayId++), value };
+    // The next extra serving rides on the arriving tray, then leaves the list.
+    const [servingBonus = 0, ...laterServings] = extraServings;
+    extraServings = laterServings;
+    const freshTray: Tray = { id: String(nextTrayId++), value: randomValue + servingBonus };
     table = [...table, freshTray];
 
-    players[p.id] = { ...p, hand, deck, table, score, submission: null };
+    players[p.id] = { ...p, hand, deck, table, score, extraServings, submission: null };
   }
 
   const next: GameState = {
@@ -213,7 +219,9 @@ export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number
         action: c.action,
         amount: c.amount,
         targets: c.targets,
+        ...(c.turns === undefined ? {} : { turns: c.turns }),
       })),
+      extraServings: [...you.extraServings],
     },
     opponent: {
       seat: opponent.seat,
@@ -222,6 +230,7 @@ export function viewFor(state: GameState, playerId: PlayerId, deadlineAt: number
       submitted: opponent.submission !== null,
       handCount: opponent.hand.length,
       table: opponent.table.map((t) => ({ id: t.id, value: t.value })),
+      extraServings: [...opponent.extraServings],
     },
   };
 }
