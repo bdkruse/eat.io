@@ -72,6 +72,18 @@ const LocalStateContext = createContext<LocalStateApi | null>(null);
 export function LocalStateProvider({ children }: { children: ReactNode }) {
   const { state, submitTurn, noteLocalRejection, setAppearance: sendAppearanceToServer } = useGame();
   const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
+  // The look the server last stored for this player: what was last sent, or the account's
+  // saved look at login. `appearance` can run ahead of it with an unsaved Customize edit.
+  // The account's own `appearance` field is not used for this, because nothing refreshes
+  // it after a Done.
+  const savedAppearanceRef = useRef<Appearance>(DEFAULT_APPEARANCE);
+  const saveAppearance = useCallback(
+    (look: Appearance) => {
+      savedAppearanceRef.current = look;
+      sendAppearanceToServer(look);
+    },
+    [sendAppearanceToServer],
+  );
   const [openPanel, setOpenPanel] = useState<OpenPanel>(null);
   const [shopSelectedItemId, setShopSelectedItemId] = useState<string | null>(null);
   // Whether the open shop came from Customize, so closing it returns there rather than
@@ -98,9 +110,9 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       if (open) openOnly("customize");
       else closeIfOpen("customize");
       // Done, while connected: a guest's look is shared, a logged-in player's is saved (§11).
-      if (!open && connected) sendAppearanceToServer(appearance);
+      if (!open && connected) saveAppearance(appearance);
     },
-    [connected, appearance, sendAppearanceToServer, openOnly, closeIfOpen],
+    [connected, appearance, saveAppearance, openOnly, closeIfOpen],
   );
 
   const setProfileOpen = useCallback(
@@ -138,16 +150,17 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   }, [closeIfOpen]);
 
   // A buy the server confirmed: wear the item and save the look (the preview alone never
-  // reaches the server). Runs once per purchase, even if the shop has closed since.
+  // reaches the server). Runs once per purchase, even if the shop has closed since. The
+  // item is saved onto the last saved look, so an unsaved Customize edit (the shop can be
+  // opened from a locked option there) is not saved with it. The local look wears the item
+  // too and keeps that edit, which Done then saves as usual.
   const previousPurchaseRef = useRef(state.shopPurchase);
   useEffect(() => {
     const purchase = state.shopPurchase;
     if (purchase === null || purchase === previousPurchaseRef.current) return;
     previousPurchaseRef.current = purchase;
-    const equippedLook = wearingShopItem(appearance, purchase.itemId);
-    setAppearance(equippedLook);
-    sendAppearanceToServer(equippedLook);
-    // `appearance` is read at the moment of the purchase, not watched.
+    setAppearance((current) => wearingShopItem(current, purchase.itemId));
+    saveAppearance(wearingShopItem(savedAppearanceRef.current, purchase.itemId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.shopPurchase]);
 
@@ -180,7 +193,7 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const previousShouldShareRef = useRef(false);
   useEffect(() => {
     if (!previousShouldShareRef.current && shouldShareNow) {
-      sendAppearanceToServer(appearance);
+      saveAppearance(appearance);
     }
     previousShouldShareRef.current = shouldShareNow;
     // `appearance` is read at the moment of the transition, not watched, so editing your
@@ -204,9 +217,10 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     }
     if (previousAccount === null && state.account !== null) {
       if (state.account.appearance) {
+        savedAppearanceRef.current = state.account.appearance;
         setAppearance(state.account.appearance);
       } else {
-        sendAppearanceToServer(appearance);
+        saveAppearance(appearance);
       }
     }
     previousAccountRef.current = state.account;
