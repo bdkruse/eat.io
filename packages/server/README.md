@@ -140,7 +140,9 @@ When the turn clock runs out, a player who has not ended the turn discards a ran
 
 On a fresh database, the server seeds the settings from `ROUND_COUNT`,
 `MOVE_DEADLINE_MS` (rounded to seconds), and `HAND_SIZE`. It seeds the deck with the
-starting deck. The seed never replaces a saved value.
+starting deck only while the deck table is empty. The seed never replaces a saved value,
+and it never adds to a deck that is already there. So a card added to the catalog later
+starts at 0 copies until the Creator gives it some.
 
 Each room reads the settings and the deck once, at its start, and keeps them for the
 whole game. A save changes only games that start after it. When the deck runs out

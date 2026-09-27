@@ -54,7 +54,11 @@ export class GameConfigStore {
     private readonly clock: Clock,
   ) {}
 
-  /** Inserts the given settings and deck composition, but only where a row is missing. */
+  /**
+   * Inserts the given settings where the row is missing, and the given deck composition
+   * only while the deck table is empty. A saved deck is never topped up: a catalog card it
+   * has no row for stays at 0 copies across restarts.
+   */
   ensureDefaults(settings: GameSettings, deck: readonly DeckEntry[]): void {
     const ensure = this.database.transaction(() => {
       this.database
@@ -65,6 +69,8 @@ export class GameConfigStore {
 
       this.database.prepare("INSERT OR IGNORE INTO default_deck_meta (id) VALUES (1)").run();
 
+      const existingDeckRow = this.database.prepare("SELECT 1 FROM default_deck LIMIT 1").get();
+      if (existingDeckRow) return;
       const insertCard = this.database.prepare(
         "INSERT OR IGNORE INTO default_deck (card_id, copies) VALUES (?, ?)",
       );

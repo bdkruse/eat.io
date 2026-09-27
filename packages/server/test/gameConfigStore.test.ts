@@ -106,6 +106,22 @@ describe("GameConfigStore", () => {
     expect(store.getSettings().settings).toEqual(savedSettings);
   });
 
+  test("ensureDefaults does not bring back a catalog card a saved deck has no row for", () => {
+    const { store, accountStore } = makeStore();
+    store.ensureDefaults(DEFAULT_SETTINGS, STARTING_DECK);
+    const registered = accountStore.register("creatoruser", "correct horse battery staple", "creator");
+    if (!registered.ok) throw new Error("setup failed");
+
+    const savedDeck = STARTING_DECK.filter((entry) => entry.cardId !== "servings2x2");
+    store.saveDeck(savedDeck, registered.account.id);
+
+    store.ensureDefaults(DEFAULT_SETTINGS, STARTING_DECK);
+
+    const deckAfterRestart = store.getDeck().entries;
+    expect(deckAfterRestart.find((entry) => entry.cardId === "servings2x2")).toBeUndefined();
+    expect(sortByCardId(deckAfterRestart)).toEqual(sortByCardId(savedDeck));
+  });
+
   test("saveSettings then getSettings round trips with updatedAt from the clock and updatedBy the account's username", () => {
     const { store, accountStore, advance } = makeStore();
     store.ensureDefaults(DEFAULT_SETTINGS, STARTING_DECK);
