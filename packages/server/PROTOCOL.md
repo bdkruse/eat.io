@@ -58,7 +58,7 @@ Nothing is silently absorbed.
 | `settingsRequest` | — | Ask for the current game settings. Requires `settings.edit`. Answered with `settings` or `adminError`. |
 | `settingsSave` | `roundCount: number`, `turnSeconds: number`, `handSize: number` | Save new game settings. Requires `settings.edit`. The field limits on the wire are loose; the server applies the real ranges (see Limits below) and answers `adminError` `INVALID_SETTINGS` on failure, never a generic `error`. Answered with `settings` on success. |
 | `deckRequest` | — | Ask for the current default deck. Requires `deck.edit`. Answered with `deck` or `adminError`. |
-| `deckSave` | `cards: { cardId: string, copies: number }[]` (max 200 entries) | Save a new default deck. Requires `deck.edit`. Same looseness as `settingsSave`: an out-of-range save answers `adminError` `INVALID_DECK`. Answered with `deck` on success. |
+| `deckSave` | `cards: { cardId: string, copies: number }[]` (max 200 entries) | Save a new default deck. Requires `deck.edit`. `copies` must be a whole number on the wire — a non-integer fails schema validation (`error`), not `adminError`. Once schema-valid, an unknown/duplicate card id, copies outside 0–40, or a deck total outside 10–100 answers `adminError` `INVALID_DECK`. Answered with `deck` on success. |
 
 `submitTurn` is the only in-game action, and it is **semantic** — it names what you did in
 game terms, never UI events (no clicks/drags/selection). Selection and targeting order are
@@ -112,7 +112,7 @@ Sent to each player with **only what that player may see**. Deltas are never use
     "hand": [ { "id": string, "instanceId": string, "name": string,
                "action": "add" | "multiply" | "addAll" | "extraServings",
                "amount": number, "targets": number,
-               "turns": number }, ... ],   // "turns" is present only on "extraServings"
+               "turns?": number }, ... ],   // present only on "extraServings"
     "extraServings": number[]     // upcoming bonuses; index 0 boosts the next tray to arrive
   },
   "opponent": {
