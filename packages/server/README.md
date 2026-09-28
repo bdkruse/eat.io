@@ -153,6 +153,46 @@ logs a warning.
 
 Each save records who made it and when. The panels show this as "Last changed by".
 
+## Practice games
+
+A practice game is one player against a bot run by the server. The client's "How to play"
+tutorial uses it. Guests and accounts can both play one.
+
+`practiceStart` starts it. The player sits in seat `a` and the bot in seat `b`. Every
+`roomState` for the room carries `mode: "practice"`, and every other room says `"match"`.
+A practice room never touches the queue or private-room codes. A busy player gets `error`
+`ALREADY_BUSY`, and nothing else changes. Busy means in the queue, holding an unclaimed
+private room, or seated in a room. `queueJoin`, `roomCreatePrivate`, and
+`roomJoinPrivate` from a seated player get the same error.
+
+The rules are fixed, so the tutorial is the same whatever the saved settings and deck
+are:
+
+- 6 rounds.
+- No turn clock. `deadlineAt` is `null` for the whole game.
+- Hand size 5 and 5 trays per table.
+- The code's `STARTING_DECK`, not the Creator's saved deck.
+
+The player's first hand is always `add3x1`, `mul2x1`, `addAll1`, `servings2x2`, and
+`add1x2`, in that order. Each card comes out of the player's own deck. A card with no
+copy in the deck comes from the catalog. Draws after that come from the deck as normal.
+The bot gets a normal random hand.
+
+The bot is named "Sam" and wears a fixed free look. Its player id is `bot:<room id>`,
+which no session id can match. It reads only its own `roomState`, the same payload a
+human gets. About 1000 ms after a round starts, it plays one card. Half the time it plays
+the card that leaves its front tray worth the most. The rest of the time it plays a
+random legal card. A card with trays aims at the front trays. The choice is a pure
+function in `src/engine/bot.ts`, with an RNG seeded per room. The timer lives in
+`src/lobby/practiceBot.ts`, which hangs off its room. At its end, the room cancels the
+timer.
+
+A practice game ends with the normal `gameOver`, but it records no stats and pays no
+Lunch Money. `roomLeave` ends it at once, with no result. The bot never disconnects, so
+the player never sees `opponentDisconnected`. If the player drops, the normal reconnect
+grace applies. A reconnect inside the grace resumes the game. After the grace, the room
+ends quietly with no result.
+
 ## Lunch Money and the shop
 
 A logged-in player earns Lunch Money in a finished game, one for each point scored. A
@@ -171,6 +211,9 @@ appearance value it unlocks, and a default price.
 | Eye shape | Star Eyes (60), Heart Eyes (60) |
 | Eye color | Violet (40), Glowing Gold (80) |
 | Mouth shape | Tongue Out (50), Vampire Fangs (70) |
+| Top | Cat-Ear Hoodie (60) |
+| One-piece | Sparkly Dress (80) |
+| Graphic | Rubber Duck Graphic (30), Dinosaur Graphic (40), Taco Graphic (30), Rainbow Graphic (50) |
 
 The Creator sets each item's price (a whole number from 1 to 1000) and whether it is
 available. An item with no saved row uses its default price and is available. A save that
@@ -186,9 +229,12 @@ lists only some items leaves the others as they were.
 
 ### Looks
 
-A look has nine fields: skin tone, hair style, hair color, shirt color, pants color, one
-extra, eye shape, eye color, and mouth shape. The option lists are in `@eat.io/protocol`
-(`src/accounts.ts`), free values first.
+A look has thirteen fields: skin tone, hair style, hair color, shirt color, pants color,
+one extra, eye shape, eye color, mouth shape, top, bottom, one-piece, and graphic. The
+option lists are in `@eat.io/protocol` (`src/accounts.ts`), free values first.
+
+There are ten skin tones, all free, ordered light to dark. The six tones from before
+protocol 5 keep their values.
 
 | Face option | Free values | Shop values |
 |---|---|---|
@@ -199,9 +245,26 @@ extra, eye shape, eye color, and mouth shape. The option lists are in `@eat.io/p
 A look saved before the face fields existed still reads, as Round eyes, Dark Brown, and a
 Smile.
 
+| Clothing | Free values | Shop values |
+|---|---|---|
+| Top | T-shirt (default), Button-up, Graphic T, Hoodie | Cat-Ear Hoodie |
+| Bottom | Pants (default), Shorts, Skirt | None |
+| One-piece | None (default), Dress, Overalls | Sparkly Dress |
+| Graphic | Star (default), Pizza, Lightning, Planet | Rubber Duck, Dinosaur, Taco, Rainbow |
+
+A look saved before the clothing fields existed reads as a T-shirt, pants, no one-piece,
+and the star graphic.
+
+The pieces combine only in the drawing of the kid. A dress, plain or sparkly, replaces
+the top and the bottom and uses the shirt color. Overalls replace the bottom, go over the
+top, and use the pants color. The graphic shows only on a Graphic T that is not covered.
+The server still stores and validates every field on its own. So a saved look can hold a
+shop graphic under a hoodie, and the player must still own it.
+
 The server refuses an `appearanceSet` that uses a shop item the player does not own, with
 `accountError` `NOT_OWNED`. A guest owns nothing, so a guest cannot wear shop items. On
-logout the server takes the shop items off the session's look. When a room starts, it
+logout the server takes the shop items off the session's look. Each one becomes the first
+free value of its field, such as the star graphic. When a room starts, it
 takes off any item the player does not own before the room keeps the look.
 
 ## Architecture
@@ -215,7 +278,8 @@ Four layers; dependencies point downward only.
   send that no-ops while detached (the socket is swapped on reconnect).
 - **Lobby / Room** (`src/lobby/`) — the coordinator, matchmaker (public queue + single-use
   four-digit private codes), room registry with reaping, and the `Room` turn loop (submit → resolve, the turn
-  clock, disconnect/pause/reconnect/abandon, broadcast via per-player projection).
+  clock, disconnect/pause/reconnect/abandon, broadcast via per-player projection). A
+  practice room adds its bot here (see [Practice games](#practice-games)).
 - **Game engine** (`src/engine/`) — **pure**: `(state, action) → state`. No sockets, no
   timers, no globals; clock and RNG are injected. A full game runs in a plain loop
   (`test/fullGame.test.ts`).

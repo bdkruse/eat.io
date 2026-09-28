@@ -4,7 +4,7 @@
 import { WebSocket } from "ws";
 
 const PORT = process.env.PORT ?? 8000;
-const PROTOCOL_VERSION = 4;
+const PROTOCOL_VERSION = 5;
 
 const pad = (text, width) => String(text).padEnd(width);
 const describeCard = (card) =>

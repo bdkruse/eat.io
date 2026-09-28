@@ -33,6 +33,14 @@ edit the default deck and the shop. Accounts are documented in
 [`packages/client-3d/README.md`](./packages/client-3d/README.md), and the wire format in
 [`packages/server/PROTOCOL.md`](./packages/server/PROTOCOL.md).
 
+## Learn to play
+
+The menu's "How to play" button starts a practice game against Sam, a bot run by the
+server. Prompts walk through the table and one card of each kind. Guests and accounts can both
+play it. It records no stats and pays no Lunch Money. The tutorial is documented in
+[`packages/client-3d/README.md`](./packages/client-3d/README.md), and the practice rules
+in [`packages/server/README.md`](./packages/server/README.md).
+
 ## Try it
 
 Without a browser, `scripts/play-demo.mjs` connects two bots over real WebSockets and
