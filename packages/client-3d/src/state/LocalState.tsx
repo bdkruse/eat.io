@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { AppearanceSchema } from "@eat.io/protocol";
 import { useGame } from "./GameProvider.js";
 import { selectYourCard, shouldShareGuestLook, type AppState } from "./gameState.js";
 import {
@@ -69,9 +70,23 @@ export interface LocalStateApi {
 
 const LocalStateContext = createContext<LocalStateApi | null>(null);
 
+/** Development only: `?look={"top":"catEarHoodie"}` starts as the default look with those
+ *  fields changed, so a screenshot can show shop pieces without an account. */
+function startingAppearance(): Appearance {
+  if (!import.meta.env.DEV) return DEFAULT_APPEARANCE;
+  const requestedLook = new URLSearchParams(window.location.search).get("look");
+  if (!requestedLook) return DEFAULT_APPEARANCE;
+  try {
+    const parsedLook = AppearanceSchema.safeParse({ ...DEFAULT_APPEARANCE, ...JSON.parse(requestedLook) });
+    return parsedLook.success ? parsedLook.data : DEFAULT_APPEARANCE;
+  } catch {
+    return DEFAULT_APPEARANCE;
+  }
+}
+
 export function LocalStateProvider({ children }: { children: ReactNode }) {
   const { state, submitTurn, noteLocalRejection, setAppearance: sendAppearanceToServer } = useGame();
-  const [appearance, setAppearance] = useState<Appearance>(DEFAULT_APPEARANCE);
+  const [appearance, setAppearance] = useState<Appearance>(startingAppearance);
   // The look the server last stored for this player: what was last sent, or the account's
   // saved look at login. `appearance` can run ahead of it with an unsaved Customize edit.
   // The account's own `appearance` field is not used for this, because nothing refreshes

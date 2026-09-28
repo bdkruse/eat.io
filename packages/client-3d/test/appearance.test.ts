@@ -3,9 +3,13 @@ import {
   FREE_ACCESSORIES,
   FREE_EYE_COLORS,
   FREE_EYE_SHAPES,
+  FREE_GRAPHICS,
   FREE_HAIR_COLORS,
   FREE_MOUTH_SHAPES,
+  FREE_ONE_PIECES,
   FREE_SHIRT_COLORS,
+  FREE_TOPS,
+  BOTTOMS,
   lockedItemsIn,
 } from "@eat.io/protocol";
 import { expect, test } from "vitest";
@@ -22,6 +26,7 @@ import {
   randomAppearance,
   SHIRT_COLORS,
   SKIN_TONES,
+  visibleClothing,
   wearingShopItem,
   withoutLockedItems,
 } from "../src/appearance/appearance.js";
@@ -107,4 +112,88 @@ test("withoutLockedItems swaps each unowned shop value for its field's first fre
 
 test("withoutLockedItems returns the same look when nothing is locked", () => {
   expect(withoutLockedItems(DEFAULT_APPEARANCE, [])).toBe(DEFAULT_APPEARANCE);
+});
+
+test("the default look wears a tee, pants, no one-piece, and the star graphic", () => {
+  expect(DEFAULT_APPEARANCE).toMatchObject({ top: "tee", bottom: "pants", onePiece: "none", graphic: "star" });
+});
+
+test("generated kids wear only free clothing", () => {
+  for (let seed = 0; seed < 500; seed++) {
+    const look = randomAppearance(seed);
+    expect(lockedItemsIn(look, [])).toEqual([]);
+    expect(FREE_TOPS).toContain(look.top);
+    expect(BOTTOMS).toContain(look.bottom);
+    expect(FREE_ONE_PIECES).toContain(look.onePiece);
+    expect(FREE_GRAPHICS).toContain(look.graphic);
+  }
+});
+
+test("the clothing is drawn after every other field, so a seed's earlier looks are unchanged", () => {
+  // Recorded from randomAppearance before the clothing fields existed.
+  const lookBeforeClothingBySeed: Record<number, object> = {
+    0: { skinTone: "#e2b087", hairStyle: "short", hairColor: "#3d2a1e", shirtColor: "#4a7fa5", pantsColor: "#b59a6d", accessory: "none", eyeShape: "sleepy", eyeColor: "#8e7240", mouthShape: "grin" },
+    1: { skinTone: "#9f6641", hairStyle: "short", hairColor: "#8a3b1f", shirtColor: "#f4f1ea", pantsColor: "#6b7048", accessory: "none", eyeShape: "sparkly", eyeColor: "#8e7240", mouthShape: "calm" },
+    7: { skinTone: "#f6d7bf", hairStyle: "short", hairColor: "#d9b25f", shirtColor: "#3e9c95", pantsColor: "#444a52", accessory: "none", eyeShape: "round", eyeColor: "#6b4226", mouthShape: "smirk" },
+    42: { skinTone: "#9f6641", hairStyle: "curly", hairColor: "#d9b25f", shirtColor: "#3e9c95", pantsColor: "#3f5a7a", accessory: "none", eyeShape: "round", eyeColor: "#4f8a4c", mouthShape: "calm" },
+    123456789: { skinTone: "#e2b087", hairStyle: "puffs", hairColor: "#c4622d", shirtColor: "#4a7fa5", pantsColor: "#b59a6d", accessory: "beanie", eyeShape: "round", eyeColor: "#3b2417", mouthShape: "smile" },
+  };
+  for (const [seed, lookBeforeClothing] of Object.entries(lookBeforeClothingBySeed)) {
+    const { top, bottom, onePiece, graphic, ...lookWithoutClothing } = randomAppearance(Number(seed));
+    expect(lookWithoutClothing).toEqual(lookBeforeClothing);
+  }
+});
+
+test("a tee shows the top and the bottom, and no graphic", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "tee", bottom: "shorts", graphic: "pizza" })).toEqual({
+    top: "tee",
+    bottom: "shorts",
+    onePiece: "none",
+    graphic: null,
+  });
+});
+
+test("a graphic T shows its graphic", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "graphicTee", bottom: "skirt", graphic: "dinosaur" })).toEqual({
+    top: "graphicTee",
+    bottom: "skirt",
+    onePiece: "none",
+    graphic: "dinosaur",
+  });
+});
+
+test("a dress covers a graphic T and the bottom, graphic and all", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "graphicTee", graphic: "taco", onePiece: "dress" })).toEqual({
+    top: null,
+    bottom: null,
+    onePiece: "dress",
+    graphic: null,
+  });
+});
+
+test("overalls cover the bottom and sit over the top", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "hoodie", bottom: "skirt", onePiece: "overalls" })).toEqual({
+    top: "hoodie",
+    bottom: null,
+    onePiece: "overalls",
+    graphic: null,
+  });
+});
+
+test("overalls over a graphic T still show the graphic", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "graphicTee", graphic: "rainbow", onePiece: "overalls" }).graphic).toBe("rainbow");
+});
+
+test("a sparkly dress covers the top and the bottom like a plain one", () => {
+  expect(visibleClothing({ ...DEFAULT_APPEARANCE, top: "catEarHoodie", bottom: "pants", onePiece: "sparklyDress" })).toEqual({
+    top: null,
+    bottom: null,
+    onePiece: "sparklyDress",
+    graphic: null,
+  });
+});
+
+test("an unowned shop graphic falls back to the star, and an unowned top and one-piece to their first free values", () => {
+  const look = { ...DEFAULT_APPEARANCE, top: "catEarHoodie", onePiece: "sparklyDress", graphic: "dinosaur" } as const;
+  expect(withoutLockedItems(look, [])).toEqual({ ...look, top: "tee", onePiece: "none", graphic: "star" });
 });

@@ -35,6 +35,10 @@ const EATER_LOOK: Appearance = {
   eyeShape: "round",
   eyeColor: "#3b2417",
   mouthShape: "smile",
+  top: "tee",
+  bottom: "pants",
+  onePiece: "none",
+  graphic: "star",
 };
 
 export interface GameTableProps {

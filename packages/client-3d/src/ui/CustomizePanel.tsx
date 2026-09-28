@@ -4,20 +4,28 @@ import { useGame } from "../state/GameProvider.js";
 import { selectScreen } from "../state/gameState.js";
 import {
   ACCESSORIES,
+  BOTTOMS,
   EYE_COLORS,
   EYE_SHAPES,
+  GRAPHICS,
   HAIR_COLORS,
   HAIR_STYLES,
   MOUTH_SHAPES,
+  ONE_PIECES,
   PANTS_COLORS,
   randomAppearance,
   SHIRT_COLORS,
   SKIN_TONES,
+  TOPS,
   type Accessory,
   type Appearance,
+  type Bottom,
   type EyeShape,
+  type Graphic,
   type HairStyle,
   type MouthShape,
+  type OnePiece,
+  type Top,
 } from "../appearance/appearance.js";
 import { useLocalState } from "../state/LocalState.js";
 import { CoinIcon, LockIcon } from "./icons.js";
@@ -68,7 +76,41 @@ const MOUTH_SHAPE_LABELS: Record<MouthShape, string> = {
   fangs: "Vampire Fangs",
 };
 
-/** A row without shop values (skin, hair style, pants): every option is free. */
+const TOP_LABELS: Record<Top, string> = {
+  tee: "T-shirt",
+  buttonUp: "Button-up",
+  graphicTee: "Graphic T",
+  hoodie: "Hoodie",
+  catEarHoodie: "Cat-Ear Hoodie",
+};
+
+const GRAPHIC_LABELS: Record<Graphic, string> = {
+  star: "Star",
+  pizza: "Pizza",
+  lightning: "Lightning",
+  planet: "Planet",
+  rubberDuck: "Rubber Duck",
+  dinosaur: "Dinosaur",
+  taco: "Taco",
+  rainbow: "Rainbow",
+};
+
+const BOTTOM_LABELS: Record<Bottom, string> = {
+  pants: "Pants",
+  shorts: "Shorts",
+  skirt: "Skirt",
+};
+
+const ONE_PIECE_LABELS: Record<OnePiece, string> = {
+  none: "None",
+  dress: "Dress",
+  overalls: "Overalls",
+  sparklyDress: "Sparkly Dress",
+};
+
+const DRESS_NOTE = "A dress covers the top and bottom.";
+
+/** A row without shop values (skin, hair style, bottom, bottom color): every option is free. */
 function freeEntries<Value extends string>(values: readonly Value[]): OptionEntry<Value>[] {
   return values.map((value) => ({ value, status: "free" }));
 }
@@ -135,6 +177,8 @@ function ChoiceRow<Choice extends string>({
   value,
   onPick,
   onOpenShop,
+  disabled = false,
+  note,
 }: {
   label: string;
   entries: readonly OptionEntry<Choice>[];
@@ -142,10 +186,14 @@ function ChoiceRow<Choice extends string>({
   value: Choice;
   onPick: (choice: Choice) => void;
   onOpenShop: (itemId: string) => void;
+  disabled?: boolean;
+  /** A line under the label, such as why the row is disabled. */
+  note?: string | undefined;
 }) {
   return (
     <div className="option-row">
       <span className="option-row__label">{label}</span>
+      {note && <p className="panel__note">{note}</p>}
       <div className="chips" role="radiogroup" aria-label={label}>
         {entries.map((entry) => {
           const picked = entry.value === value;
@@ -157,6 +205,7 @@ function ChoiceRow<Choice extends string>({
               role="radio"
               aria-checked={picked}
               aria-label={locked ? `${labels[entry.value]}, locked, ${entry.price} Lunch Money` : undefined}
+              disabled={disabled}
               onClick={pickHandler(entry, onPick, onOpenShop)}
             >
               {locked && <LockIcon />}
@@ -200,6 +249,8 @@ export function CustomizePanel() {
   const shopItems: ShopItemView[] | null = account ? (state.shop?.items ?? null) : null;
   const shopRow = <Value extends string>(field: keyof Appearance, values: readonly Value[]) =>
     optionRowEntries(field, values, ownedItemIds, shopItems);
+  // A dress covers the top and the bottom; their values stay stored for when it comes off.
+  const wearingDress = appearance.onePiece === "dress" || appearance.onePiece === "sparklyDress";
 
   return (
     <section className="panel panel--customize">
@@ -212,8 +263,14 @@ export function CustomizePanel() {
       <ChoiceRow label="Eyes" entries={shopRow("eyeShape", EYE_SHAPES)} labels={EYE_SHAPE_LABELS} value={appearance.eyeShape} onPick={(eyeShape) => update({ eyeShape })} onOpenShop={openShop} />
       <SwatchRow label="Eye color" entries={shopRow("eyeColor", EYE_COLORS)} value={appearance.eyeColor} onPick={(eyeColor) => update({ eyeColor })} onOpenShop={openShop} />
       <ChoiceRow label="Mouth" entries={shopRow("mouthShape", MOUTH_SHAPES)} labels={MOUTH_SHAPE_LABELS} value={appearance.mouthShape} onPick={(mouthShape) => update({ mouthShape })} onOpenShop={openShop} />
-      <SwatchRow label="Shirt" entries={shopRow("shirtColor", SHIRT_COLORS)} value={appearance.shirtColor} onPick={(shirtColor) => update({ shirtColor })} onOpenShop={openShop} />
-      <SwatchRow label="Pants" entries={freeEntries(PANTS_COLORS)} value={appearance.pantsColor} onPick={(pantsColor) => update({ pantsColor })} onOpenShop={openShop} />
+      <ChoiceRow label="Top" entries={shopRow("top", TOPS)} labels={TOP_LABELS} value={appearance.top} onPick={(top) => update({ top })} onOpenShop={openShop} disabled={wearingDress} note={wearingDress ? DRESS_NOTE : undefined} />
+      {appearance.top === "graphicTee" && (
+        <ChoiceRow label="Graphic" entries={shopRow("graphic", GRAPHICS)} labels={GRAPHIC_LABELS} value={appearance.graphic} onPick={(graphic) => update({ graphic })} onOpenShop={openShop} disabled={wearingDress} />
+      )}
+      <SwatchRow label="Top color" entries={shopRow("shirtColor", SHIRT_COLORS)} value={appearance.shirtColor} onPick={(shirtColor) => update({ shirtColor })} onOpenShop={openShop} />
+      <ChoiceRow label="Bottom" entries={freeEntries(BOTTOMS)} labels={BOTTOM_LABELS} value={appearance.bottom} onPick={(bottom) => update({ bottom })} onOpenShop={openShop} disabled={wearingDress} />
+      <SwatchRow label="Bottom color" entries={freeEntries(PANTS_COLORS)} value={appearance.pantsColor} onPick={(pantsColor) => update({ pantsColor })} onOpenShop={openShop} />
+      <ChoiceRow label="One-piece" entries={shopRow("onePiece", ONE_PIECES)} labels={ONE_PIECE_LABELS} value={appearance.onePiece} onPick={(onePiece) => update({ onePiece })} onOpenShop={openShop} />
       <ChoiceRow label="Extra" entries={shopRow("accessory", ACCESSORIES)} labels={ACCESSORY_LABELS} value={appearance.accessory} onPick={(accessory) => update({ accessory })} onOpenShop={openShop} />
 
       <div className="panel__actions panel__actions--row">

@@ -1,10 +1,12 @@
 import { useFrame } from "@react-three/fiber";
 import { useRef, type ReactNode } from "react";
 import { BoxGeometry, CapsuleGeometry, CircleGeometry, CylinderGeometry, SphereGeometry, type Group } from "three";
-import type { Appearance } from "../../appearance/appearance.js";
+import { visibleClothing, type Appearance } from "../../appearance/appearance.js";
 import { sharedGeometry, toon, unlit } from "../materials.js";
+import { ThighCuff, TorsoClothing, WaistClothing } from "./KidClothing.js";
 import { BowTie } from "./KidExtras.js";
 import { KidHead, type KidHeadHandles } from "./KidHead.js";
+import { legCovering, type Covering } from "./legCovering.js";
 import { computeJoints, type Animation, type Pose } from "./poses.js";
 
 /** Height of the bench seat a sitting kid rests on. */
@@ -18,6 +20,14 @@ const neckGeometry = () => sharedGeometry("neck", () => new CylinderGeometry(0.0
 const blobGeometry = () => sharedGeometry("blob", () => new CircleGeometry(0.26, 20));
 const carriedTrayGeometry = () => sharedGeometry("carriedTray", () => new BoxGeometry(0.4, 0.025, 0.3));
 const forkGeometry = () => sharedGeometry("fork", () => new BoxGeometry(0.012, 0.16, 0.006));
+
+/** Development only: `?kidDetail=low` (or `high`) draws every kid at that detail, so the
+ *  low-detail kid can be checked up close on the Customize screen. */
+const FORCED_KID_DETAIL: "high" | "low" | null = (() => {
+  if (!import.meta.env.DEV) return null;
+  const requested = new URLSearchParams(window.location.search).get("kidDetail");
+  return requested === "high" || requested === "low" ? requested : null;
+})();
 
 const SHOE = "#f3efe6";
 const SOLE = "#5a4f47";
@@ -57,7 +67,7 @@ export function Kid({
   pose,
   animation,
   phase = 0,
-  detail = "high",
+  detail: requestedDetail = "high",
   position = [0, 0, 0],
   rotation = 0,
   blobShadow = false,
@@ -69,6 +79,7 @@ export function Kid({
   scale = 1,
   children,
 }: KidProps) {
+  const detail = FORCED_KID_DETAIL ?? requestedDetail;
   const body = useRef<Group>(null);
   const torso = useRef<Group>(null);
   const neck = useRef<Group>(null);
@@ -112,12 +123,19 @@ export function Kid({
   const skin = toon(appearance.skinTone);
   const shoe = toon(SHOE);
   const sole = toon(SOLE);
+  const clothing = visibleClothing(appearance);
+  const covering = legCovering(clothing, pose === "sit");
+  const coveringMaterial = { shirt, pants, skin } satisfies Record<Covering, unknown>;
+  const pelvisMaterial = coveringMaterial[covering.pelvis];
+  const thighMaterial = coveringMaterial[covering.thigh];
+  const shinMaterial = coveringMaterial[covering.shin];
 
   const leg = (side: 1 | -1, hip: typeof rightHip, knee: typeof rightKnee) => (
     <group ref={hip} position={[side * 0.075, 0.46, 0]}>
-      <mesh geometry={capsule(0.06, 0.13)} material={pants} position={[0, -0.1, 0]} castShadow={castShadow} />
+      <mesh geometry={capsule(0.06, 0.13)} material={thighMaterial} position={[0, -0.1, 0]} castShadow={castShadow} />
+      <ThighCuff cuff={covering.thighCuff} pantsColor={appearance.pantsColor} detail={detail} />
       <group ref={knee} position={[0, -0.21, 0]}>
-        <mesh geometry={capsule(0.052, 0.12)} material={pants} position={[0, -0.08, 0]} castShadow={castShadow} />
+        <mesh geometry={capsule(0.052, 0.12)} material={shinMaterial} position={[0, -0.08, 0]} castShadow={castShadow} />
         <group position={[0, -0.205, 0.035]}>
           <mesh geometry={sphere(0.06)} material={shoe} scale={[1, 0.62, 1.55]} castShadow={castShadow} />
           <mesh geometry={sphere(0.06)} material={sole} scale={[1.02, 0.25, 1.57]} position={[0, -0.025, 0]} />
@@ -149,9 +167,11 @@ export function Kid({
       <group ref={body}>
         {leg(-1, rightHip, rightKnee)}
         {leg(1, leftHip, leftKnee)}
-        <mesh geometry={pelvisGeometry()} material={pants} position={[0, 0.5, 0]} castShadow={castShadow} />
+        <mesh geometry={pelvisGeometry()} material={pelvisMaterial} position={[0, 0.5, 0]} castShadow={castShadow} />
+        <WaistClothing appearance={appearance} clothing={clothing} detail={detail} castShadow={castShadow} seated={pose === "sit"} />
         <group ref={torso} position={[0, 0.52, 0]}>
           <mesh geometry={capsule(0.15, 0.2)} material={shirt} position={[0, 0.19, 0]} scale={[1, 1, 0.82]} castShadow={castShadow} />
+          <TorsoClothing appearance={appearance} clothing={clothing} detail={detail} castShadow={castShadow} />
           {bib && (
             <mesh geometry={sphere(0.12)} material={toon("#ffffff")} position={[0, 0.25, 0.1]} scale={[1, 1.1, 0.35]} />
           )}

@@ -14,6 +14,9 @@ const SHOP_KIND_LABELS: Record<ShopItemKind, string> = {
   eyeShape: "Eyes",
   eyeColor: "Eye colors",
   mouthShape: "Mouths",
+  top: "Tops",
+  onePiece: "One-pieces",
+  graphic: "Graphics",
 };
 
 /** The kinds whose items are colors, shown with a swatch of that color. */

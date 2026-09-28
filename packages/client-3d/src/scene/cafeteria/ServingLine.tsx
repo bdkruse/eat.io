@@ -32,6 +32,10 @@ const staffLook = (seed: number): Appearance => ({
   shirtColor: "#4a7fa5",
   pantsColor: "#444a52",
   accessory: seed % 2 === 0 ? "glasses" : "none",
+  // A uniform: the apron goes over a plain tee and pants.
+  top: "tee",
+  bottom: "pants",
+  onePiece: "none",
 });
 
 /** The steam-table counter, the staff behind it, and the kids waiting in line. */

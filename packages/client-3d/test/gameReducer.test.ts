@@ -20,6 +20,7 @@ const welcomed = () =>
 
 const room = (over: Partial<RoomStateMessage> = {}): RoomStateMessage => ({
   type: "roomState",
+  mode: "match",
   phase: "in-progress",
   roundIndex: 0,
   roundCount: 10,
