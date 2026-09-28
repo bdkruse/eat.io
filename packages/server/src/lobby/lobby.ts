@@ -113,7 +113,10 @@ export class Lobby {
       case "ping":
         session.send({ type: "pong" });
         break;
+      // A seated player cannot also wait for or join another game: a second room would
+      // take over `playerRoom` and leave the first one with nobody to end it.
       case "queueJoin": {
+        if (this.refuseWhileSeated(session)) break;
         const result = this.deps.matchmaker.joinPublic(playerId, this.canPairWith(playerId));
         if (result.paired) this.startRoom(result.opponent, playerId);
         else this.sendTo(playerId, { type: "queueWaiting" });
@@ -125,9 +128,11 @@ export class Lobby {
         session.send({ type: "queueCancelled" });
         break;
       case "roomCreatePrivate":
+        if (this.refuseWhileSeated(session)) break;
         session.send({ type: "roomJoinedPrivate", code: this.deps.matchmaker.createPrivate(playerId) });
         break;
       case "roomJoinPrivate": {
+        if (this.refuseWhileSeated(session)) break;
         const result = this.deps.matchmaker.joinPrivate(playerId, msg.code, this.canPairWith(playerId));
         if (result.ok) this.startRoom(result.host, playerId);
         else this.sendTo(playerId, { type: "error", code: "NO_SUCH_ROOM", message: result.reason });
@@ -147,7 +152,7 @@ export class Lobby {
       }
       case "practiceStart":
         if (this.isBusy(playerId)) {
-          session.send({ type: "error", code: "ALREADY_BUSY", message: ALREADY_BUSY_MESSAGE });
+          this.sendAlreadyBusy(session);
           break;
         }
         this.startPracticeRoom(session);
@@ -497,6 +502,17 @@ export class Lobby {
     const busy = this.isBusy(session.id);
     if (busy) this.sendAccountError(session, "BUSY");
     return busy;
+  }
+
+  /** Seated in a room. Waiting alone is allowed, so a queued player may retry. */
+  private refuseWhileSeated(session: Session): boolean {
+    const seated = this.roomOf(session.id) !== undefined;
+    if (seated) this.sendAlreadyBusy(session);
+    return seated;
+  }
+
+  private sendAlreadyBusy(session: Session): void {
+    session.send({ type: "error", code: "ALREADY_BUSY", message: ALREADY_BUSY_MESSAGE });
   }
 
   /** In the public queue, holding an unclaimed private room, or seated in a room. */

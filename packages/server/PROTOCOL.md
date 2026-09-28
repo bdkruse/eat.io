@@ -43,10 +43,10 @@ Nothing is silently absorbed.
 | `type` | Fields | Sent when |
 |---|---|---|
 | `hello` | `protocolVersion: number`, `name: string` (1–14 chars), `sessionToken?: string`, `loginToken?: string` | First message. Include `sessionToken` to reconnect to an existing seat. Include `loginToken` to resume a logged-in account (see Accounts below). |
-| `queueJoin` | — | Enter the public matchmaking queue. |
+| `queueJoin` | — | Enter the public matchmaking queue. Refused with `error` `ALREADY_BUSY` if you are seated in a room. |
 | `queueCancel` | — | Leave the public queue. Answered with `queueCancelled`. |
-| `roomCreatePrivate` | — | Create a private room; the server replies with a join code. |
-| `roomJoinPrivate` | `code: string` | Join a private room by its four-digit code. A code is consumed on use and cannot be joined by its own host; either failure returns `error` `NO_SUCH_ROOM`. |
+| `roomCreatePrivate` | — | Create a private room; the server replies with a join code. Refused with `error` `ALREADY_BUSY` if you are seated in a room. |
+| `roomJoinPrivate` | `code: string` | Join a private room by its four-digit code. A code is consumed on use and cannot be joined by its own host; either failure returns `error` `NO_SUCH_ROOM`. Refused with `error` `ALREADY_BUSY` if you are seated in a room. |
 | `submitTurn` | `cardInstanceId: string`, `targetTrayIds: string[]` | Commit this round's move: play that specific card from your hand against the listed trays on your own table. For a card that takes N targets, send exactly N ids. **Send `card.instanceId`, not `card.id`** — see below. |
 | `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
 | `practiceStart` | — | Start a practice game against the server's bot (see Practice games below). Answered with the usual `roomState` messages, with `mode: "practice"`. Refused with `error` `ALREADY_BUSY` if you are seated in a room, in the public queue, or holding an unclaimed private room. Nothing else changes. |

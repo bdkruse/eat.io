@@ -337,3 +337,57 @@ test("a normal match roomState has mode match", () => {
   expect(latestRoomState(riley)).toMatchObject({ mode: "match", roundCount: ROUND_COUNT });
   expect(latestRoomState(riley).deadlineAt).toBe(MOVE_DEADLINE_MS);
 });
+
+test("queueJoin from a seated player is refused and changes nothing", () => {
+  const testLobby = makeLobby();
+  const riley = guest(testLobby, "Riley");
+  send(testLobby, riley, { type: "practiceStart" });
+
+  expect(send(testLobby, riley, { type: "queueJoin" })).toEqual([BUSY_ERROR]);
+  expect(testLobby.registry.list()).toHaveLength(1);
+
+  // Riley was never queued: the next player waits, and the practice game goes on.
+  const sam = guest(testLobby, "Sam");
+  expect(send(testLobby, sam, { type: "queueJoin" })).toEqual([{ type: "queueWaiting" }]);
+  playRound(testLobby, riley);
+  expect(latestRoomState(riley)).toMatchObject({ mode: "practice", roundIndex: 1 });
+
+  // The same holds in a match.
+  const kai = guest(testLobby, "Kai");
+  send(testLobby, kai, { type: "queueJoin" });
+  expect(latestRoomState(sam)).toMatchObject({ mode: "match" });
+  expect(send(testLobby, sam, { type: "queueJoin" })).toEqual([BUSY_ERROR]);
+  expect(testLobby.registry.list()).toHaveLength(2);
+});
+
+test("roomCreatePrivate from a seated player is refused and creates no code", () => {
+  const testLobby = makeLobby();
+  const riley = guest(testLobby, "Riley");
+  send(testLobby, riley, { type: "practiceStart" });
+
+  expect(send(testLobby, riley, { type: "roomCreatePrivate" })).toEqual([BUSY_ERROR]);
+  expect(testLobby.registry.list()).toHaveLength(1);
+
+  // No code is waiting: once the practice game ends, Riley is free to start another.
+  send(testLobby, riley, { type: "roomLeave" });
+  send(testLobby, riley, { type: "practiceStart" });
+  expect(latestRoomState(riley)).toMatchObject({ mode: "practice", phase: "in-progress", roundIndex: 0 });
+});
+
+test("roomJoinPrivate from a seated player is refused, and the code still works", () => {
+  const testLobby = makeLobby();
+  const riley = guest(testLobby, "Riley");
+  send(testLobby, riley, { type: "practiceStart" });
+  const sam = guest(testLobby, "Sam");
+  const code = lastOf(send(testLobby, sam, { type: "roomCreatePrivate" }), "roomJoinedPrivate")!.code;
+
+  expect(send(testLobby, riley, { type: "roomJoinPrivate", code })).toEqual([BUSY_ERROR]);
+  expect(testLobby.registry.list()).toHaveLength(1);
+  expect(lastOf(sam.out, "roomState")).toBeUndefined();
+
+  const kai = guest(testLobby, "Kai");
+  send(testLobby, kai, { type: "roomJoinPrivate", code });
+  expect(latestRoomState(sam)).toMatchObject({ mode: "match", opponent: { name: "Kai" } });
+  playRound(testLobby, riley);
+  expect(latestRoomState(riley)).toMatchObject({ mode: "practice", roundIndex: 1 });
+});
