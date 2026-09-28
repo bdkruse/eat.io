@@ -20,6 +20,14 @@ import {
   FREE_EYE_SHAPES,
   FREE_EYE_COLORS,
   FREE_MOUTH_SHAPES,
+  SKIN_TONES,
+  TOPS,
+  BOTTOMS,
+  ONE_PIECES,
+  GRAPHICS,
+  FREE_TOPS,
+  FREE_ONE_PIECES,
+  FREE_GRAPHICS,
 } from "../src/index.js";
 
 test("isValidUsername accepts letters, digits, underscore, and hyphen within 3-14 chars", () => {
@@ -74,6 +82,10 @@ test("AppearanceSchema accepts a valid look and rejects an out-of-palette color"
     eyeShape: "sleepy",
     eyeColor: FREE_EYE_COLORS[4],
     mouthShape: "smirk",
+    top: "graphicTee",
+    bottom: "skirt",
+    onePiece: "overalls",
+    graphic: "planet",
   };
   expect(AppearanceSchema.parse(validAppearance)).toEqual(validAppearance);
   expect(() =>
@@ -81,7 +93,7 @@ test("AppearanceSchema accepts a valid look and rejects an out-of-palette color"
   ).toThrow();
 });
 
-test("an appearance stored before the face fields existed parses with Round, Dark Brown, Smile", () => {
+test("an appearance stored before the face fields existed parses with every default", () => {
   // The exact shape a v3 server saved to the accounts table: six fields, no face.
   const storedBeforeFaces = JSON.parse(
     '{"skinTone":"#d9a47a","hairStyle":"puffs","hairColor":"#c4622d","shirtColor":"#7d5ba6","pantsColor":"#6b7048","accessory":"beanie"}',
@@ -96,7 +108,110 @@ test("an appearance stored before the face fields existed parses with Round, Dar
     eyeShape: "round",
     eyeColor: FREE_EYE_COLORS[0],
     mouthShape: "smile",
+    top: "tee",
+    bottom: "pants",
+    onePiece: "none",
+    graphic: "star",
   });
+});
+
+test("an appearance stored before the clothing fields existed parses as a tee, pants, no one-piece, and a star", () => {
+  // The exact shape a v4 server saved to the accounts table: nine fields, a face, no clothing.
+  const storedBeforeClothing = JSON.parse(
+    '{"skinTone":"#5e3a24","hairStyle":"bob","hairColor":"#1f6fff","shirtColor":"#d4af37","pantsColor":"#444a52","accessory":"crown","eyeShape":"heart","eyeColor":"#8a4fd1","mouthShape":"fangs"}',
+  );
+  expect(AppearanceSchema.parse(storedBeforeClothing)).toEqual({
+    skinTone: "#5e3a24",
+    hairStyle: "bob",
+    hairColor: "#1f6fff",
+    shirtColor: "#d4af37",
+    pantsColor: "#444a52",
+    accessory: "crown",
+    eyeShape: "heart",
+    eyeColor: "#8a4fd1",
+    mouthShape: "fangs",
+    top: "tee",
+    bottom: "pants",
+    onePiece: "none",
+    graphic: "star",
+  });
+});
+
+test("the clothing defaults are the first value of each clothing list", () => {
+  expect(FREE_TOPS[0]).toBe("tee");
+  expect(BOTTOMS[0]).toBe("pants");
+  expect(FREE_ONE_PIECES[0]).toBe("none");
+  expect(FREE_GRAPHICS[0]).toBe("star");
+});
+
+test("the clothing lists are the free values followed by the shop values", () => {
+  expect(FREE_TOPS).toEqual(["tee", "buttonUp", "graphicTee", "hoodie"]);
+  expect(TOPS).toEqual([...FREE_TOPS, "catEarHoodie"]);
+  expect(BOTTOMS).toEqual(["pants", "shorts", "skirt"]);
+  expect(FREE_ONE_PIECES).toEqual(["none", "dress", "overalls"]);
+  expect(ONE_PIECES).toEqual([...FREE_ONE_PIECES, "sparklyDress"]);
+  expect(FREE_GRAPHICS).toEqual(["star", "pizza", "lightning", "planet"]);
+  expect(GRAPHICS).toEqual([...FREE_GRAPHICS, "rubberDuck", "dinosaur", "taco", "rainbow"]);
+});
+
+test("every clothing value parses, including the shop values", () => {
+  const clothingLook = AppearanceSchema.parse({
+    skinTone: "#eec19b",
+    hairStyle: "bob",
+    hairColor: "#5a3825",
+    shirtColor: "#4a7fa5",
+    pantsColor: "#3f5a7a",
+    accessory: "none",
+  });
+  for (const top of TOPS) expect(AppearanceSchema.parse({ ...clothingLook, top }).top).toBe(top);
+  for (const bottom of BOTTOMS) expect(AppearanceSchema.parse({ ...clothingLook, bottom }).bottom).toBe(bottom);
+  for (const onePiece of ONE_PIECES) {
+    expect(AppearanceSchema.parse({ ...clothingLook, onePiece }).onePiece).toBe(onePiece);
+  }
+  for (const graphic of GRAPHICS) expect(AppearanceSchema.parse({ ...clothingLook, graphic }).graphic).toBe(graphic);
+});
+
+test("AppearanceSchema rejects an unknown clothing value", () => {
+  const unclothed = {
+    skinTone: "#eec19b",
+    hairStyle: "bob",
+    hairColor: "#5a3825",
+    shirtColor: "#4a7fa5",
+    pantsColor: "#3f5a7a",
+    accessory: "none",
+  };
+  expect(() => AppearanceSchema.parse({ ...unclothed, top: "tankTop" })).toThrow();
+  expect(() => AppearanceSchema.parse({ ...unclothed, bottom: "jeans" })).toThrow();
+  expect(() => AppearanceSchema.parse({ ...unclothed, onePiece: "jumpsuit" })).toThrow();
+  expect(() => AppearanceSchema.parse({ ...unclothed, graphic: "skull" })).toThrow();
+});
+
+test("the ten skin tones run light to dark, keep the original six, and all parse", () => {
+  expect(SKIN_TONES).toEqual([
+    "#f6d7bf",
+    "#eec19b",
+    "#e2b087",
+    "#d9a47a",
+    "#c68b5e",
+    "#b87a4f",
+    "#9f6641",
+    "#8d5634",
+    "#5e3a24",
+    "#3f2618",
+  ]);
+  for (const originalTone of ["#f6d7bf", "#eec19b", "#d9a47a", "#b87a4f", "#8d5634", "#5e3a24"]) {
+    expect(SKIN_TONES).toContain(originalTone);
+  }
+  const lookWithoutSkinTone = {
+    hairStyle: "bob",
+    hairColor: "#5a3825",
+    shirtColor: "#4a7fa5",
+    pantsColor: "#3f5a7a",
+    accessory: "none",
+  };
+  for (const skinTone of SKIN_TONES) {
+    expect(AppearanceSchema.parse({ ...lookWithoutSkinTone, skinTone }).skinTone).toBe(skinTone);
+  }
 });
 
 test("the face defaults are the first free value of each face list", () => {
@@ -150,7 +265,7 @@ test("the free option lists are today's values, and the full lists add only the 
 });
 
 test("color option values are distinct lowercase hex strings", () => {
-  for (const colorList of [SHIRT_COLORS, HAIR_COLORS, EYE_COLORS]) {
+  for (const colorList of [SKIN_TONES, SHIRT_COLORS, HAIR_COLORS, EYE_COLORS]) {
     expect(new Set(colorList).size).toBe(colorList.length);
     for (const colorValue of colorList) expect(colorValue).toMatch(/^#[0-9a-f]{6}$/);
   }

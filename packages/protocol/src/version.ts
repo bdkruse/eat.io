@@ -12,5 +12,12 @@
  *  `shopBuy`/`shopConfigRequest`/`shopConfigSave` and `shop`/`shopConfig`); the
  *  `shop.edit` permission; the face fields on `Appearance` (`eyeShape`/`eyeColor`/
  *  `mouthShape`); the `accountError` codes `NOT_OWNED`/`NOT_AVAILABLE`/
- *  `ALREADY_OWNED`/`NOT_ENOUGH`; and the optional `TrayView.bonus`. */
-export const PROTOCOL_VERSION = 4;
+ *  `ALREADY_OWNED`/`NOT_ENOUGH`; and the optional `TrayView.bonus`.
+ *  v5: the clothing fields on `Appearance` (`top`/`bottom`/`onePiece`/`graphic`,
+ *  each defaulting so older looks parse); four more `skinTone` values (ten in
+ *  all); the shop item kinds `top`/`onePiece`/`graphic` and the six clothing
+ *  items (`top.catEarHoodie`, `onePiece.sparklyDress`, `graphic.rubberDuck`,
+ *  `graphic.dinosaur`, `graphic.taco`, `graphic.rainbow`); the `practiceStart`
+ *  client message; and the required `roomState.mode` (`"match"` or
+ *  `"practice"`). */
+export const PROTOCOL_VERSION = 5;

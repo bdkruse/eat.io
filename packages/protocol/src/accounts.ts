@@ -5,7 +5,19 @@ import { z } from "zod";
 // lists are the values anyone may wear; every other value is unlocked by exactly
 // one shop item (see shop.ts).
 
-export const SKIN_TONES = ["#f6d7bf", "#eec19b", "#d9a47a", "#b87a4f", "#8d5634", "#5e3a24"] as const;
+// Light to dark. All free. The first six tones predate v5 and keep their values.
+export const SKIN_TONES = [
+  "#f6d7bf",
+  "#eec19b",
+  "#e2b087",
+  "#d9a47a",
+  "#c68b5e",
+  "#b87a4f",
+  "#9f6641",
+  "#8d5634",
+  "#5e3a24",
+  "#3f2618",
+] as const;
 export const HAIR_STYLES = ["short", "bob", "curly", "ponytail", "buzz", "puffs"] as const;
 export const PANTS_COLORS = ["#3f5a7a", "#b59a6d", "#444a52", "#6b7048"] as const;
 
@@ -69,8 +81,21 @@ export const EYE_COLORS = [
 export const FREE_MOUTH_SHAPES = ["smile", "grin", "calm", "smirk"] as const;
 export const MOUTH_SHAPES = [...FREE_MOUTH_SHAPES, "tongue", "fangs"] as const;
 
+// Clothing. A dress (plain or sparkly) replaces the top and the bottom; overalls
+// replace the bottom and sit over the top; the graphic shows only on a visible
+// graphic tee. Each field is still stored and checked on its own.
+export const FREE_TOPS = ["tee", "buttonUp", "graphicTee", "hoodie"] as const;
+export const TOPS = [...FREE_TOPS, "catEarHoodie"] as const;
+export const BOTTOMS = ["pants", "shorts", "skirt"] as const; // all free
+export const FREE_ONE_PIECES = ["none", "dress", "overalls"] as const;
+export const ONE_PIECES = [...FREE_ONE_PIECES, "sparklyDress"] as const;
+export const FREE_GRAPHICS = ["star", "pizza", "lightning", "planet"] as const;
+export const GRAPHICS = [...FREE_GRAPHICS, "rubberDuck", "dinosaur", "taco", "rainbow"] as const;
+
 // The face fields default so a look stored before they existed (six fields, no
-// face) still parses — as Round eyes, Dark Brown, and a Smile.
+// face) still parses — as Round eyes, Dark Brown, and a Smile. The clothing
+// fields default the same way, so a look stored before v5 parses as a tee,
+// pants, no one-piece, and the star graphic.
 export const AppearanceSchema = z.object({
   skinTone: z.enum(SKIN_TONES),
   hairStyle: z.enum(HAIR_STYLES),
@@ -81,12 +106,20 @@ export const AppearanceSchema = z.object({
   eyeShape: z.enum(EYE_SHAPES).default(FREE_EYE_SHAPES[0]),
   eyeColor: z.enum(EYE_COLORS).default(FREE_EYE_COLORS[0]),
   mouthShape: z.enum(MOUTH_SHAPES).default(FREE_MOUTH_SHAPES[0]),
+  top: z.enum(TOPS).default(FREE_TOPS[0]),
+  bottom: z.enum(BOTTOMS).default(BOTTOMS[0]),
+  onePiece: z.enum(ONE_PIECES).default(FREE_ONE_PIECES[0]),
+  graphic: z.enum(GRAPHICS).default(FREE_GRAPHICS[0]),
 });
 export type Appearance = z.infer<typeof AppearanceSchema>;
 export type HairStyle = Appearance["hairStyle"];
 export type Accessory = Appearance["accessory"];
 export type EyeShape = Appearance["eyeShape"];
 export type MouthShape = Appearance["mouthShape"];
+export type Top = Appearance["top"];
+export type Bottom = Appearance["bottom"];
+export type OnePiece = Appearance["onePiece"];
+export type Graphic = Appearance["graphic"];
 
 // ---------- roles and permissions ----------
 

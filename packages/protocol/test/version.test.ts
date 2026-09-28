@@ -6,6 +6,6 @@ test("protocol version is a positive integer", () => {
   expect(PROTOCOL_VERSION).toBeGreaterThan(0);
 });
 
-test("protocol version is 4: table-effect cards, settings, and deck messages", () => {
-  expect(PROTOCOL_VERSION).toBe(4);
+test("protocol version is 5: clothing, more skin tones, and practice games", () => {
+  expect(PROTOCOL_VERSION).toBe(5);
 });

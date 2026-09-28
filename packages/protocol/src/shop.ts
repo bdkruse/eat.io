@@ -7,7 +7,17 @@ export const SHOP_PRICE_LIMITS = { min: 1, max: 1000 } as const;
 
 // ---------- items ----------
 
-export const SHOP_ITEM_KINDS = ["extra", "shirtColor", "hairColor", "eyeShape", "eyeColor", "mouthShape"] as const;
+export const SHOP_ITEM_KINDS = [
+  "extra",
+  "shirtColor",
+  "hairColor",
+  "eyeShape",
+  "eyeColor",
+  "mouthShape",
+  "top",
+  "onePiece",
+  "graphic",
+] as const;
 export const ShopItemKindSchema = z.enum(SHOP_ITEM_KINDS);
 export type ShopItemKind = z.infer<typeof ShopItemKindSchema>;
 
@@ -19,6 +29,9 @@ export const SHOP_ITEM_KIND_FIELDS: Record<ShopItemKind, keyof Appearance> = {
   eyeShape: "eyeShape",
   eyeColor: "eyeColor",
   mouthShape: "mouthShape",
+  top: "top",
+  onePiece: "onePiece",
+  graphic: "graphic",
 };
 
 /** A catalog entry, like a card. The Creator's saved price and availability
@@ -41,8 +54,8 @@ function shopItem(
   return { id, name, kind, unlocks: { field: SHOP_ITEM_KIND_FIELDS[kind], value: unlockedValue }, defaultPrice };
 }
 
-// Spec §13.2 and §13.3. The unlocked values are the non-free entries of the
-// appearance option lists in accounts.ts.
+// Spec §13.2 and §13.3, then the v5 clothing items. The unlocked values are the
+// non-free entries of the appearance option lists in accounts.ts.
 export const SHOP_ITEMS: readonly ShopItemDefinition[] = [
   shopItem("extra.sunglasses", "Sunglasses", "extra", "sunglasses", 30),
   shopItem("extra.bowTie", "Bow Tie", "extra", "bowTie", 30),
@@ -66,6 +79,12 @@ export const SHOP_ITEMS: readonly ShopItemDefinition[] = [
   shopItem("eyeColor.gold", "Glowing Gold", "eyeColor", "#ffcc33", 80),
   shopItem("mouth.tongue", "Tongue Out", "mouthShape", "tongue", 50),
   shopItem("mouth.fangs", "Vampire Fangs", "mouthShape", "fangs", 70),
+  shopItem("top.catEarHoodie", "Cat-Ear Hoodie", "top", "catEarHoodie", 60),
+  shopItem("onePiece.sparklyDress", "Sparkly Dress", "onePiece", "sparklyDress", 80),
+  shopItem("graphic.rubberDuck", "Rubber Duck Graphic", "graphic", "rubberDuck", 30),
+  shopItem("graphic.dinosaur", "Dinosaur Graphic", "graphic", "dinosaur", 40),
+  shopItem("graphic.taco", "Taco Graphic", "graphic", "taco", 30),
+  shopItem("graphic.rainbow", "Rainbow Graphic", "graphic", "rainbow", 50),
 ];
 
 /** The shop item ids this look uses that the player does not own. Empty means

@@ -17,6 +17,15 @@ import {
   FREE_EYE_SHAPES,
   FREE_EYE_COLORS,
   FREE_MOUTH_SHAPES,
+  TOPS,
+  BOTTOMS,
+  ONE_PIECES,
+  GRAPHICS,
+  FREE_TOPS,
+  FREE_ONE_PIECES,
+  FREE_GRAPHICS,
+  SHOP_ITEM_KINDS,
+  SHOP_ITEM_KIND_FIELDS,
   type Appearance,
 } from "../src/index.js";
 
@@ -38,7 +47,7 @@ function unlockedValueOf(itemId: string): string {
   return item.unlocks.value;
 }
 
-test("the shop catalog holds the 22 items of spec 13.2 and 13.3 with their default prices", () => {
+test("the shop catalog holds the 22 items of spec 13.2 and 13.3 and the 6 clothing items, with their default prices", () => {
   const priceById = Object.fromEntries(SHOP_ITEMS.map((item) => [item.id, item.defaultPrice]));
   expect(priceById).toEqual({
     "extra.sunglasses": 30,
@@ -63,6 +72,12 @@ test("the shop catalog holds the 22 items of spec 13.2 and 13.3 with their defau
     "eyeColor.gold": 80,
     "mouth.tongue": 50,
     "mouth.fangs": 70,
+    "top.catEarHoodie": 60,
+    "onePiece.sparklyDress": 80,
+    "graphic.rubberDuck": 30,
+    "graphic.dinosaur": 40,
+    "graphic.taco": 30,
+    "graphic.rainbow": 50,
   });
 });
 
@@ -91,7 +106,31 @@ test("shop items carry the spec names and kinds", () => {
     "eyeColor.gold": ["Glowing Gold", "eyeColor"],
     "mouth.tongue": ["Tongue Out", "mouthShape"],
     "mouth.fangs": ["Vampire Fangs", "mouthShape"],
+    "top.catEarHoodie": ["Cat-Ear Hoodie", "top"],
+    "onePiece.sparklyDress": ["Sparkly Dress", "onePiece"],
+    "graphic.rubberDuck": ["Rubber Duck Graphic", "graphic"],
+    "graphic.dinosaur": ["Dinosaur Graphic", "graphic"],
+    "graphic.taco": ["Taco Graphic", "graphic"],
+    "graphic.rainbow": ["Rainbow Graphic", "graphic"],
   });
+});
+
+test("the clothing items come last, in catalog order", () => {
+  expect(SHOP_ITEMS.slice(-6).map((item) => item.id)).toEqual([
+    "top.catEarHoodie",
+    "onePiece.sparklyDress",
+    "graphic.rubberDuck",
+    "graphic.dinosaur",
+    "graphic.taco",
+    "graphic.rainbow",
+  ]);
+});
+
+test("the clothing kinds unlock the clothing field of the same name", () => {
+  expect(SHOP_ITEM_KINDS).toEqual(expect.arrayContaining(["top", "onePiece", "graphic"]));
+  expect(SHOP_ITEM_KIND_FIELDS.top).toBe("top");
+  expect(SHOP_ITEM_KIND_FIELDS.onePiece).toBe("onePiece");
+  expect(SHOP_ITEM_KIND_FIELDS.graphic).toBe("graphic");
 });
 
 test("every default price sits inside the price limits of 1 to 1000", () => {
@@ -111,6 +150,9 @@ test("each shop item unlocks one non-free value of the field that matches its ki
     eyeShape: EYE_SHAPES,
     eyeColor: EYE_COLORS,
     mouthShape: MOUTH_SHAPES,
+    top: TOPS,
+    onePiece: ONE_PIECES,
+    graphic: GRAPHICS,
   };
   const freeOptionsByField: Record<string, readonly string[]> = {
     accessory: FREE_ACCESSORIES,
@@ -119,6 +161,9 @@ test("each shop item unlocks one non-free value of the field that matches its ki
     eyeShape: FREE_EYE_SHAPES,
     eyeColor: FREE_EYE_COLORS,
     mouthShape: FREE_MOUTH_SHAPES,
+    top: FREE_TOPS,
+    onePiece: FREE_ONE_PIECES,
+    graphic: FREE_GRAPHICS,
   };
   const fieldByKind = {
     extra: "accessory",
@@ -127,6 +172,9 @@ test("each shop item unlocks one non-free value of the field that matches its ki
     eyeShape: "eyeShape",
     eyeColor: "eyeColor",
     mouthShape: "mouthShape",
+    top: "top",
+    onePiece: "onePiece",
+    graphic: "graphic",
   };
   for (const item of SHOP_ITEMS) {
     expect(item.unlocks.field).toBe(fieldByKind[item.kind]);
@@ -143,6 +191,10 @@ test("every option value is either free or unlocked by exactly one shop item", (
     ["eyeShape", EYE_SHAPES, FREE_EYE_SHAPES],
     ["eyeColor", EYE_COLORS, FREE_EYE_COLORS],
     ["mouthShape", MOUTH_SHAPES, FREE_MOUTH_SHAPES],
+    ["top", TOPS, FREE_TOPS],
+    ["bottom", BOTTOMS, BOTTOMS],
+    ["onePiece", ONE_PIECES, FREE_ONE_PIECES],
+    ["graphic", GRAPHICS, FREE_GRAPHICS],
   ];
   for (const [field, allOptions, freeOptions] of optionPairs) {
     for (const optionValue of allOptions) {
@@ -186,6 +238,45 @@ test("lockedItemsIn names every unowned shop value the look uses", () => {
   expect(lockedItemsIn(shopLook, ["eyes.heart"]).sort()).toEqual(
     ["extra.vikingHelmet", "shirt.midnight", "eyeColor.gold", "mouth.fangs"].sort(),
   );
+});
+
+test("lockedItemsIn names the cat-ear hoodie, the sparkly dress, and each shop graphic when unowned", () => {
+  expect(lockedItemsIn({ ...FREE_LOOK, top: "catEarHoodie" }, [])).toEqual(["top.catEarHoodie"]);
+  expect(lockedItemsIn({ ...FREE_LOOK, onePiece: "sparklyDress" }, [])).toEqual(["onePiece.sparklyDress"]);
+  const shopGraphics: [Appearance["graphic"], string][] = [
+    ["rubberDuck", "graphic.rubberDuck"],
+    ["dinosaur", "graphic.dinosaur"],
+    ["taco", "graphic.taco"],
+    ["rainbow", "graphic.rainbow"],
+  ];
+  for (const [graphic, itemId] of shopGraphics) {
+    expect(lockedItemsIn({ ...FREE_LOOK, graphic }, [])).toEqual([itemId]);
+  }
+});
+
+test("lockedItemsIn names none of the clothing items when they are owned", () => {
+  expect(lockedItemsIn({ ...FREE_LOOK, top: "catEarHoodie" }, ["top.catEarHoodie"])).toEqual([]);
+  expect(lockedItemsIn({ ...FREE_LOOK, onePiece: "sparklyDress" }, ["onePiece.sparklyDress"])).toEqual([]);
+  for (const graphic of ["rubberDuck", "dinosaur", "taco", "rainbow"] as const) {
+    expect(lockedItemsIn({ ...FREE_LOOK, graphic }, [`graphic.${graphic}`])).toEqual([]);
+  }
+});
+
+test("lockedItemsIn checks a shop graphic even when the top hides it", () => {
+  const hiddenGraphicLook: Appearance = { ...FREE_LOOK, top: "hoodie", graphic: "dinosaur" };
+  expect(lockedItemsIn(hiddenGraphicLook, [])).toEqual(["graphic.dinosaur"]);
+});
+
+test("lockedItemsIn a look of only free clothing is empty", () => {
+  for (const top of FREE_TOPS) {
+    for (const bottom of BOTTOMS) {
+      for (const onePiece of FREE_ONE_PIECES) {
+        for (const graphic of FREE_GRAPHICS) {
+          expect(lockedItemsIn({ ...FREE_LOOK, top, bottom, onePiece, graphic }, [])).toEqual([]);
+        }
+      }
+    }
+  }
 });
 
 describe("shopConfigProblem", () => {

@@ -1,6 +1,6 @@
 # eat.io WebSocket Protocol
 
-**Protocol version: 4.** This document is the complete contract between the eat.io
+**Protocol version: 5.** This document is the complete contract between the eat.io
 server and any client. The zod schemas in `@eat.io/protocol` are the source of truth; this
 prose describes them. If they disagree, the schemas win — but they should not.
 
@@ -34,7 +34,8 @@ Every `submitTurn` receives exactly one of `actionAccepted` or `actionRejected`.
 
 Every other client message is acknowledged too: `queueJoin` → `queueWaiting` or a
 `roomState` if it paired immediately, `queueCancel` → `queueCancelled`,
-`roomCreatePrivate` → `roomJoinedPrivate`, `roomLeave` → `roomLeft`, `ping` → `pong`.
+`roomCreatePrivate` → `roomJoinedPrivate`, `practiceStart` → `roomState`,
+`roomLeave` → `roomLeft`, `ping` → `pong`.
 Nothing is silently absorbed.
 
 ## Client → Server messages
@@ -48,6 +49,7 @@ Nothing is silently absorbed.
 | `roomJoinPrivate` | `code: string` | Join a private room by its four-digit code. A code is consumed on use and cannot be joined by its own host; either failure returns `error` `NO_SUCH_ROOM`. |
 | `submitTurn` | `cardInstanceId: string`, `targetTrayIds: string[]` | Commit this round's move: play that specific card from your hand against the listed trays on your own table. For a card that takes N targets, send exactly N ids. **Send `card.instanceId`, not `card.id`** — see below. |
 | `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
+| `practiceStart` | — | Start a practice game against the server's bot (see Practice games below). Answered with the usual `roomState` messages, with `mode: "practice"`. Refused with an `error` if you are already in a room or in the queue. |
 | `ping` | — | Liveness check; answered with `pong`. |
 | `accountRegister` | `username: string`, `password: string` | Create an account. The field limits on the wire are loose; the server applies the real username/password rules and answers `accountError` with a specific code on failure. |
 | `accountLogin` | `username: string`, `password: string` | Log in to an existing account. |
@@ -104,6 +106,7 @@ Sent to each player with **only what that player may see**. Deltas are never use
 ```
 {
   "type": "roomState",
+  "mode": "match" | "practice",  // "practice": a one-player game against the bot
   "phase": "waiting" | "in-progress" | "paused" | "finished" | "abandoned",
   "roundIndex": number,          // 0-based; how many rounds have resolved
   "roundCount": number,          // total rounds in this game
@@ -135,6 +138,9 @@ Sent to each player with **only what that player may see**. Deltas are never use
   }
 }
 ```
+
+**`mode`:** `"practice"` for a practice game started with `practiceStart`, `"match"` for
+every other game (public queue or private room). Always present.
 
 **Secrecy:** the opponent's `hand` cards and both players' decks are **absent** from the
 payload — not hidden, absent. Render only what you are sent.
@@ -208,7 +214,8 @@ ordinary value — render it, do not treat it as a missing winner.
 ## Accounts, appearance, and profiles
 
 **`Appearance`.** A kid's on-board look: `skinTone`, `hairStyle`, `hairColor`, `shirtColor`,
-`pantsColor`, `accessory`, `eyeShape`, `eyeColor`, `mouthShape`. Each field is one of a
+`pantsColor`, `accessory`, `eyeShape`, `eyeColor`, `mouthShape`, `top`, `bottom`,
+`onePiece`, `graphic`. Each field is one of a
 fixed, protocol-defined list of values — not any string or color. A guest sends
 `appearanceSet` to set their own look for the current connection. A logged-in session's
 `appearanceSet` also saves the look to the account.
@@ -216,6 +223,26 @@ fixed, protocol-defined list of values — not any string or color. A guest send
 The three face fields are optional on the wire and default to `eyeShape: "round"`,
 `eyeColor` Dark Brown (`FREE_EYE_COLORS[0]`), and `mouthShape: "smile"`. A look saved
 before the face fields existed parses with those defaults.
+
+The four clothing fields are optional on the wire too, and default to `top: "tee"`,
+`bottom: "pants"`, `onePiece: "none"`, and `graphic: "star"`. A look saved before v5 parses
+as a tee, pants, no one-piece, and the star graphic.
+
+| Field | Free values | Shop values |
+|---|---|---|
+| `top` | `tee`, `buttonUp`, `graphicTee`, `hoodie` | `catEarHoodie` |
+| `bottom` | `pants`, `shorts`, `skirt` | none |
+| `onePiece` | `none`, `dress`, `overalls` | `sparklyDress` |
+| `graphic` | `star`, `pizza`, `lightning`, `planet` | `rubberDuck`, `dinosaur`, `taco`, `rainbow` |
+
+How the pieces combine is drawing only: a dress (plain or sparkly) replaces the top and the
+bottom, overalls replace the bottom and sit over the top, and the graphic shows only on a
+visible `graphicTee`. Every field is still stored and checked on its own, so a saved look
+can hold a graphic under a hoodie, and ownership still applies to that hidden graphic.
+
+`skinTone` is one of ten free tones, light to dark (`SKIN_TONES`): `#f6d7bf`, `#eec19b`,
+`#e2b087`, `#d9a47a`, `#c68b5e`, `#b87a4f`, `#9f6641`, `#8d5634`, `#5e3a24`, `#3f2618`. The
+six tones from before v5 keep their values.
 
 Some option values are shop items (see Lunch Money and the shop below). The `FREE_*` lists
 in `@eat.io/protocol` hold the values anyone may wear. `appearanceSet` with a shop value the
@@ -301,6 +328,9 @@ price and availability override the defaults.
 | `eyeShape` | `eyeShape` | `eyes.star`, `eyes.heart` |
 | `eyeColor` | `eyeColor` | `eyeColor.violet`, `eyeColor.gold` |
 | `mouthShape` | `mouthShape` | `mouth.tongue`, `mouth.fangs` |
+| `top` | `top` | `top.catEarHoodie` |
+| `onePiece` | `onePiece` | `onePiece.sparklyDress` |
+| `graphic` | `graphic` | `graphic.rubberDuck`, `graphic.dinosaur`, `graphic.taco`, `graphic.rainbow` |
 
 **`ShopItem`** (inside `shop.items` and `shopConfig.items`). `id`, `name`, `kind`, `price`
 (the current price), `available`, and `owned` (whether the receiving account owns it).
@@ -318,12 +348,25 @@ keep it and can still wear it.
 
 **Price limits.** Each price is a whole number from 1 to 1000 (`SHOP_PRICE_LIMITS`).
 
+## Practice games
+
+`practiceStart` puts the player in seat `a` of a new room against the server's bot in seat
+`b`. Every `roomState` for that room carries `mode: "practice"`. The bot is an ordinary
+`opponent` in the view, named "Sam", with a free look. It sees only its own view, the same
+payload a human gets.
+
+A practice game uses fixed rules, whatever the saved game settings and deck are: 6 rounds,
+hand size 5, and no turn clock, so `deadlineAt` is `null` for the whole game. It ends with
+the normal `gameOver`, but it changes no stats and pays no Lunch Money. `roomLeave` ends it
+at once. The bot never disconnects, so a practice game never sends
+`opponentDisconnected`. If the player disconnects, the normal reconnect grace applies.
+
 ## Typical sequences
 
 **Matchmake and play a round**
 
 ```
-C→S hello {protocolVersion:4, name:"Riley"}
+C→S hello {protocolVersion:5, name:"Riley"}
 S→C welcome {playerId, sessionToken}
 C→S queueJoin
 S→C queueWaiting                     (until an opponent arrives)
@@ -338,13 +381,13 @@ S→C roomState (roundIndex incremented, new deadlineAt)
 **Resume a logged-in account**
 
 ```
-C→S hello {protocolVersion:4, name:"Riley", loginToken:<stored token>}
+C→S hello {protocolVersion:5, name:"Riley", loginToken:<stored token>}
 S→C welcome {playerId, sessionToken}
 S→C accountLoggedIn {profile}                (no loginToken: the stored one is still good)
 ```
 
 ```
-C→S hello {protocolVersion:4, name:"Riley", loginToken:<unknown or expired>}
+C→S hello {protocolVersion:5, name:"Riley", loginToken:<unknown or expired>}
 S→C welcome {playerId, sessionToken}
 S→C accountLoggedOut {reason:"expired"}       session continues as a guest
 ```
@@ -367,7 +410,7 @@ C→S appearanceSet {appearance (accessory:"crown")}
  ping goes unanswered for HEARTBEAT_TIMEOUT_MS and the socket is dropped)
 S→C(opponent) opponentDisconnected {graceEndsAt}     room is now paused
 (within grace, dropped client opens a new socket)
-C→S hello {protocolVersion:4, name:"Riley", sessionToken:<same token>}
+C→S hello {protocolVersion:5, name:"Riley", sessionToken:<same token>}
 S→C welcome {playerId:<same>, sessionToken:<same>}
 S→C(opponent) opponentReconnected
 S→C(both) roomState {phase:"in-progress", ...}       full view resent

@@ -67,8 +67,13 @@ export const OpponentViewSchema = z.object({
   extraServings: z.array(z.number().int().positive()),
 });
 
+/** `practice` is a one-player game against the server's bot, started with
+ *  `practiceStart`; every other room is a `match`. */
+export const RoomModeSchema = z.enum(["match", "practice"]);
+
 export const RoomStateSchema = z.object({
   type: z.literal("roomState"),
+  mode: RoomModeSchema,
   phase: RoomPhaseSchema,
   roundIndex: z.number().int().nonnegative(),
   roundCount: z.number().int().positive(),
@@ -97,6 +102,7 @@ export const SubmitTurnSchema = z.object({
   targetTrayIds: z.array(z.string()),
 });
 export const RoomLeaveSchema = z.object({ type: z.literal("roomLeave") });
+export const PracticeStartSchema = z.object({ type: z.literal("practiceStart") });
 export const PingSchema = z.object({ type: z.literal("ping") });
 
 // The string limits here are loose on purpose — the server applies the real
@@ -156,6 +162,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   RoomJoinPrivateSchema,
   SubmitTurnSchema,
   RoomLeaveSchema,
+  PracticeStartSchema,
   PingSchema,
   AccountRegisterSchema,
   AccountLoginSchema,
@@ -294,6 +301,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 export type RoomStateMessage = z.infer<typeof RoomStateSchema>;
+export type RoomMode = z.infer<typeof RoomModeSchema>;
 export type WelcomeMessage = z.infer<typeof WelcomeSchema>;
 export type CardView = z.infer<typeof CardViewSchema>;
 export type TrayView = z.infer<typeof TrayViewSchema>;

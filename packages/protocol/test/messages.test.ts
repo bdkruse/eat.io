@@ -18,6 +18,7 @@ const VALID_APPEARANCE = {
 function baseRoomState() {
   return {
     type: "roomState",
+    mode: "match",
     phase: "in-progress",
     roundIndex: 0,
     roundCount: 10,
@@ -87,6 +88,31 @@ test("roomState without appearance on you or opponent fails", () => {
   const opponent = viewOpponent["opponent"] as Record<string, unknown>;
   delete opponent["appearance"];
   expect(() => parseServerMessage(viewOpponent)).toThrow();
+});
+
+test("roomState without mode fails", () => {
+  const { mode: _mode, ...roomStateWithoutMode } = baseRoomState();
+  expect(() => parseServerMessage(roomStateWithoutMode)).toThrow();
+});
+
+test("roomState mode is match or practice and nothing else", () => {
+  for (const mode of ["match", "practice"]) {
+    const parsed = parseServerMessage({ ...baseRoomState(), mode });
+    if (parsed.type !== "roomState") throw new Error("expected roomState");
+    expect(parsed.mode).toBe(mode);
+  }
+  expect(() => parseServerMessage({ ...baseRoomState(), mode: "tutorial" })).toThrow();
+});
+
+test("practiceStart parses as a client message", () => {
+  expect(parseClientMessage({ type: "practiceStart" })).toEqual({ type: "practiceStart" });
+});
+
+test("a shop item view of each clothing kind parses", () => {
+  for (const kind of ["top", "onePiece", "graphic"]) {
+    const shopItem = { id: `${kind}.example`, name: "Example", kind, price: 30, available: true, owned: false };
+    expect(parseServerMessage({ type: "shop", items: [shopItem], balance: 0 }).type).toBe("shop");
+  }
 });
 
 test("roomState with appearance: null parses", () => {
@@ -326,4 +352,13 @@ test("appearanceSet from a client without face fields parses with the face defau
   if (parsed.type !== "appearanceSet") throw new Error("expected appearanceSet");
   expect(parsed.appearance.eyeShape).toBe("round");
   expect(parsed.appearance.mouthShape).toBe("smile");
+});
+
+test("appearanceSet from a client without clothing fields parses with the clothing defaults", () => {
+  const parsed = parseClientMessage({ type: "appearanceSet", appearance: VALID_APPEARANCE });
+  if (parsed.type !== "appearanceSet") throw new Error("expected appearanceSet");
+  expect(parsed.appearance.top).toBe("tee");
+  expect(parsed.appearance.bottom).toBe("pants");
+  expect(parsed.appearance.onePiece).toBe("none");
+  expect(parsed.appearance.graphic).toBe("star");
 });
