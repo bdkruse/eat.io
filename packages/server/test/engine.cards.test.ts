@@ -185,6 +185,7 @@ test("the view shows both players' extra servings and a servings card's turns, a
 
   const roomState = {
     ...ownView,
+    mode: "match",
     you: { ...ownView.you, appearance: null },
     opponent: { ...ownView.opponent, appearance: null },
   };
@@ -236,6 +237,7 @@ test("a tray arriving with no bonus carries no bonus field, in the state or the 
 
   const roomState = {
     ...ownView,
+    mode: "match",
     you: { ...ownView.you, appearance: null },
     opponent: { ...ownView.opponent, appearance: null },
   };

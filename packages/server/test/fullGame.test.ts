@@ -45,10 +45,11 @@ test("a full game terminates after roundCount rounds with valid state throughout
   }
   const ranked = rankResult(g);
   expect(ranked.winner === null || ranked.winner === "a" || ranked.winner === "b").toBe(true);
-  // The room adds each player's appearance; the engine's view is everything else.
+  // The room adds its mode and each player's appearance; the engine's view is everything else.
   const view = viewFor(g, "p1", null);
   const roomState = {
     ...view,
+    mode: "match",
     you: { ...view.you, appearance: null },
     opponent: { ...view.opponent, appearance: null },
   };
@@ -93,6 +94,7 @@ test("a full game that plays every card type at least once plays to the end", ()
       const view = viewFor(state, playerId, null);
       const roomState = {
         ...view,
+        mode: "match",
         you: { ...view.you, appearance: null },
         opponent: { ...view.opponent, appearance: null },
       };

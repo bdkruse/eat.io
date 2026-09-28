@@ -191,9 +191,9 @@ export function resultFor(ranked: RankedResult, seat: Seat): Result {
   return { kind, scores: ranked.scores };
 }
 
-/** The room state as the engine sees it: everything but each player's appearance,
- *  which the room adds from its seats. */
-export type GameView = Omit<RoomStateMessage, "you" | "opponent"> & {
+/** The room state as the engine sees it: everything but the room's mode and each
+ *  player's appearance, which the room adds. The engine knows nothing of room modes. */
+export type GameView = Omit<RoomStateMessage, "mode" | "you" | "opponent"> & {
   you: Omit<YouView, "appearance">;
   opponent: Omit<OpponentView, "appearance">;
 };

@@ -148,11 +148,12 @@ export class Room {
     }
   }
 
-  /** The engine's view for one seat, with both players' appearance added from the seats. */
+  /** The engine's view for one seat, with the room's mode and both players' appearance added. */
   private viewForSeat(state: GameState, seatRef: SeatRef, deadlineAt: number | null): RoomStateMessage {
     const gameView = viewFor(state, seatRef.id, deadlineAt);
     return {
       ...gameView,
+      mode: "match", // every room is a match until practice rooms exist
       you: { ...gameView.you, appearance: seatRef.appearance },
       opponent: { ...gameView.opponent, appearance: this.opponentOf(seatRef.id)?.appearance ?? null },
     };
