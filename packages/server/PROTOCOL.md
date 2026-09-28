@@ -49,7 +49,7 @@ Nothing is silently absorbed.
 | `roomJoinPrivate` | `code: string` | Join a private room by its four-digit code. A code is consumed on use and cannot be joined by its own host; either failure returns `error` `NO_SUCH_ROOM`. |
 | `submitTurn` | `cardInstanceId: string`, `targetTrayIds: string[]` | Commit this round's move: play that specific card from your hand against the listed trays on your own table. For a card that takes N targets, send exactly N ids. **Send `card.instanceId`, not `card.id`** — see below. |
 | `roomLeave` | — | Leave the current room and return to the menu. Answered with `roomLeft`. |
-| `practiceStart` | — | Start a practice game against the server's bot (see Practice games below). Answered with the usual `roomState` messages, with `mode: "practice"`. Refused with an `error` if you are already in a room or in the queue. |
+| `practiceStart` | — | Start a practice game against the server's bot (see Practice games below). Answered with the usual `roomState` messages, with `mode: "practice"`. Refused with `error` `ALREADY_BUSY` if you are seated in a room, in the public queue, or holding an unclaimed private room. Nothing else changes. |
 | `ping` | — | Liveness check; answered with `pong`. |
 | `accountRegister` | `username: string`, `password: string` | Create an account. The field limits on the wire are loose; the server applies the real username/password rules and answers `accountError` with a specific code on failure. |
 | `accountLogin` | `username: string`, `password: string` | Log in to an existing account. |
@@ -359,7 +359,9 @@ A practice game uses fixed rules, whatever the saved game settings and deck are:
 hand size 5, and no turn clock, so `deadlineAt` is `null` for the whole game. It ends with
 the normal `gameOver`, but it changes no stats and pays no Lunch Money. `roomLeave` ends it
 at once. The bot never disconnects, so a practice game never sends
-`opponentDisconnected`. If the player disconnects, the normal reconnect grace applies.
+`opponentDisconnected`. If the player disconnects, the normal reconnect grace applies. A
+reconnect inside the grace resumes the game where it paused. After the grace, the practice
+room ends quietly with no result: no `gameOver`, no stats, and no Lunch Money.
 
 ## Typical sequences
 

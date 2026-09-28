@@ -392,6 +392,51 @@ describe("ownership of looks", () => {
     expect(opponentLook).toEqual({ ...CROWN_LOOK, accessory: "none" });
   });
 
+  test("each new clothing shop value is refused with NOT_OWNED while unowned", () => {
+    const testLobby = makeLobby();
+    const riley = account(testLobby, "Riley_1", { lunchMoney: 500 });
+    send(testLobby, riley, { type: "appearanceSet", appearance: FREE_LOOK });
+
+    const clothingLooks: Appearance[] = [
+      { ...FREE_LOOK, top: "catEarHoodie" },
+      { ...FREE_LOOK, onePiece: "sparklyDress" },
+      { ...FREE_LOOK, top: "hoodie", graphic: "rubberDuck" },
+      { ...FREE_LOOK, top: "graphicTee", graphic: "dinosaur" },
+      { ...FREE_LOOK, graphic: "taco" },
+      { ...FREE_LOOK, graphic: "rainbow" },
+    ];
+    for (const clothingLook of clothingLooks) {
+      expect(send(testLobby, riley, { type: "appearanceSet", appearance: clothingLook })).toMatchObject([
+        { type: "accountError", code: "NOT_OWNED" },
+      ]);
+    }
+    expect(testLobby.accounts.get(riley.accountId)?.appearance).toEqual(FREE_LOOK);
+  });
+
+  test("logging out swaps owned clothing for the free fallback of each field", () => {
+    const testLobby = makeLobby();
+    const riley = account(testLobby, "Riley_1", { lunchMoney: 500 });
+    for (const itemId of ["top.catEarHoodie", "onePiece.sparklyDress", "graphic.taco"]) {
+      send(testLobby, riley, { type: "shopBuy", itemId });
+    }
+    const shopClothingLook: Appearance = { ...FREE_LOOK, top: "catEarHoodie", onePiece: "sparklyDress", graphic: "taco" };
+    expect(send(testLobby, riley, { type: "appearanceSet", appearance: shopClothingLook })).toEqual([]);
+    send(testLobby, riley, { type: "accountLogout" });
+
+    expect(riley.socket.session?.appearance).toEqual({ ...FREE_LOOK, top: "tee", onePiece: "none", graphic: "star" });
+  });
+
+  test("a shop graphic under a hoodie falls back to star on logout, keeping the hoodie", () => {
+    const testLobby = makeLobby();
+    const riley = account(testLobby, "Riley_1", { lunchMoney: 500 });
+    send(testLobby, riley, { type: "shopBuy", itemId: "graphic.rubberDuck" });
+    const hoodieLook: Appearance = { ...FREE_LOOK, top: "hoodie", graphic: "rubberDuck" };
+    expect(send(testLobby, riley, { type: "appearanceSet", appearance: hoodieLook })).toEqual([]);
+    send(testLobby, riley, { type: "accountLogout" });
+
+    expect(riley.socket.session?.appearance).toEqual({ ...FREE_LOOK, top: "hoodie", graphic: "star" });
+  });
+
   test("a room captures only allowed looks, even if an unowned item reached the session", () => {
     const testLobby = makeLobby();
     const riley = guest(testLobby, "Riley");

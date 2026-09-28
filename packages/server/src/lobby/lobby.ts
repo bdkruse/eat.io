@@ -24,7 +24,7 @@ import type { ShopItemConfig, ShopStore } from "../shop/shopStore.js";
 import { withoutLockedItems } from "../shop/looks.js";
 import type { PlayerId } from "../engine/state.js";
 import { makeRules } from "../engine/rules/index.js";
-import { CARD_CATALOG, STARTING_DECK } from "../engine/rules/content.js";
+import { CARD_CATALOG, STARTING_DECK, TUNING } from "../engine/rules/content.js";
 import type { Config } from "../config.js";
 import type { Logger } from "../logger.js";
 import type { Clock, Timers } from "./timers.js";
@@ -32,6 +32,7 @@ import { Session, type SendFn } from "../session/session.js";
 import { Matchmaker } from "./matchmaking.js";
 import { RoomRegistry } from "./registry.js";
 import { Room, type SeatResult } from "./room.js";
+import { BOT_MOVE_DELAY_MS, PRACTICE_BOT_LOOK, PRACTICE_BOT_NAME, PracticeBot } from "./practiceBot.js";
 
 export interface Connection {
   send: SendFn;
@@ -73,6 +74,17 @@ const ACCOUNT_ERROR_MESSAGES: Record<AccountErrorCode, string> = {
 const LOG_OUT_FIRST_MESSAGE = "Log out first.";
 
 const FORBIDDEN_MESSAGE = "You do not have permission to do that.";
+
+const ALREADY_BUSY_MESSAGE = "Leave your game or the queue first.";
+
+// A practice game's rules are fixed, so the tutorial is the same whatever the saved
+// settings and deck are.
+const PRACTICE_ROUND_COUNT = 6;
+const PRACTICE_HAND_SIZE = 5;
+/** The human's first hand, in hand order: the cards the tutorial walks through. */
+const PRACTICE_OPENING_HAND: readonly string[] = ["add3x1", "mul2x1", "addAll1", "servings2x2", "add1x2"];
+/** Mixed into the room's seed for the bot's, so its choices do not follow the deal. */
+const PRACTICE_BOT_SEED_SALT = 0x5eed_b07;
 
 const CATALOG_CARD_IDS: readonly string[] = CARD_CATALOG.map((card) => card.id);
 const SHOP_ITEM_IDS: readonly string[] = SHOP_ITEMS.map((item) => item.id);
@@ -133,6 +145,13 @@ export class Lobby {
         });
         break;
       }
+      case "practiceStart":
+        if (this.isBusy(playerId)) {
+          session.send({ type: "error", code: "ALREADY_BUSY", message: ALREADY_BUSY_MESSAGE });
+          break;
+        }
+        this.startPracticeRoom(session);
+        break;
       case "roomLeave": {
         this.deps.matchmaker.remove(playerId);
         this.roomOf(playerId)?.leave(playerId);
@@ -475,9 +494,14 @@ export class Lobby {
 
   /** Waiting for a game or seated in one: identity stays fixed until it ends. */
   private refuseWhileBusy(session: Session): boolean {
-    const busy = this.deps.matchmaker.isWaiting(session.id) || this.roomOf(session.id) !== undefined;
+    const busy = this.isBusy(session.id);
     if (busy) this.sendAccountError(session, "BUSY");
     return busy;
+  }
+
+  /** In the public queue, holding an unclaimed private room, or seated in a room. */
+  private isBusy(playerId: PlayerId): boolean {
+    return this.deps.matchmaker.isWaiting(playerId) || this.roomOf(playerId) !== undefined;
   }
 
   /** One account per session: switching accounts, or registering another, needs a logout first. */
@@ -529,6 +553,7 @@ export class Lobby {
       onFinished: (rid) => this.reap(rid),
       logger: this.deps.logger,
       seed: this.deps.config.seed,
+      mode: "match",
     });
     this.deps.registry.add(room);
     this.playerRoom.set(aId, roomId);
@@ -543,6 +568,59 @@ export class Lobby {
       const session = this.sessions.get(playerId);
       room.addPlayer(playerId, session?.name ?? "Player", session ? this.allowedLookOf(session) : null);
     }
+  }
+
+  /**
+   * A practice room: the player in seat `a` against the bot in seat `b`, with fixed rules,
+   * no turn clock, and no result. It never touches matchmaking or private-room codes, and
+   * it is not in `roomAccounts`, so nothing is recorded.
+   */
+  private startPracticeRoom(session: Session): void {
+    const roomId = this.deps.registry.nextRoomId();
+    // No session id has this shape, so no connection can speak for the bot.
+    const botId: PlayerId = `bot:${roomId}`;
+    const seed = this.deps.config.seed ?? Math.floor(Math.random() * 0x7fffffff);
+    const bot = new PracticeBot({
+      playerId: botId,
+      timers: this.deps.timers,
+      seed: (seed ^ PRACTICE_BOT_SEED_SALT) >>> 0,
+      // Runs from the bot's timer, detached from any caller: contain a fault to this room.
+      submit: (move) => {
+        try {
+          room.submit(botId, move);
+        } catch (error) {
+          this.deps.logger.error("practice bot move failed", { roomId, err: String(error) });
+        }
+      },
+      delayMs: BOT_MOVE_DELAY_MS,
+    });
+    const room: Room = new Room({
+      roomId,
+      rules: makeRules({ tableLength: TUNING.tableLength, handSize: PRACTICE_HAND_SIZE, deck: STARTING_DECK }),
+      roundCount: PRACTICE_ROUND_COUNT,
+      moveDeadlineMs: null,
+      reconnectGraceMs: this.deps.config.reconnectGraceMs,
+      clock: this.deps.clock,
+      timers: this.deps.timers,
+      send: (recipientId, message) => {
+        if (recipientId === botId) bot.receive(message);
+        else this.sendTo(recipientId, message);
+      },
+      // A practice game pays no Lunch Money and records no stats.
+      onResult: () => {},
+      onFinished: (finishedRoomId) => {
+        bot.stop();
+        this.reap(finishedRoomId);
+      },
+      logger: this.deps.logger,
+      seed,
+      mode: "practice",
+      openingHands: { [session.id]: PRACTICE_OPENING_HAND },
+    });
+    this.deps.registry.add(room);
+    this.playerRoom.set(session.id, roomId);
+    room.addPlayer(session.id, session.name, this.allowedLookOf(session));
+    room.addPlayer(botId, PRACTICE_BOT_NAME, PRACTICE_BOT_LOOK);
   }
 
   /**

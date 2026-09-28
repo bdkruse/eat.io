@@ -2,9 +2,12 @@ import {
   FREE_ACCESSORIES,
   FREE_EYE_COLORS,
   FREE_EYE_SHAPES,
+  FREE_GRAPHICS,
   FREE_HAIR_COLORS,
   FREE_MOUTH_SHAPES,
+  FREE_ONE_PIECES,
   FREE_SHIRT_COLORS,
+  FREE_TOPS,
   SHOP_ITEMS,
   lockedItemsIn,
   type Appearance,
@@ -19,6 +22,9 @@ const FREE_FALLBACK_BY_KIND: Record<ShopItemKind, string> = {
   eyeShape: FREE_EYE_SHAPES[0],
   eyeColor: FREE_EYE_COLORS[0],
   mouthShape: FREE_MOUTH_SHAPES[0],
+  top: FREE_TOPS[0],
+  onePiece: FREE_ONE_PIECES[0],
+  graphic: FREE_GRAPHICS[0],
 };
 
 /**

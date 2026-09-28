@@ -17,7 +17,7 @@ function harness() {
     send: (id, msg) => sent[id]!.push(msg),
     onResult: () => {},
     onFinished: (id) => finished.push(id),
-    logger: createLogger("error"), seed: 5,
+    logger: createLogger("error"), seed: 5, mode: "match",
   });
   room.addPlayer("p1", "Riley", null);
   room.addPlayer("p2", "Sam", null);

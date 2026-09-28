@@ -49,7 +49,7 @@ function harness(rules: Rules) {
     },
     onResult: () => {},
     onFinished: () => {},
-    logger, seed: 5,
+    logger, seed: 5, mode: "match",
   });
   room.addPlayer("p1", "Riley", null);
   room.addPlayer("p2", "Sam", null);

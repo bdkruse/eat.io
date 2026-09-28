@@ -2,7 +2,15 @@ import type { PlayerId, GameState, Submission } from "../engine/state.js";
 import type { Rules } from "../engine/rules/index.js";
 import type { Cancel, Clock, Timers } from "./timers.js";
 import type { Logger } from "../logger.js";
-import type { Appearance, ResultKind, RoomPhase, RoomStateMessage, Seat, ServerMessage } from "@eat.io/protocol";
+import type {
+  Appearance,
+  ResultKind,
+  RoomMode,
+  RoomPhase,
+  RoomStateMessage,
+  Seat,
+  ServerMessage,
+} from "@eat.io/protocol";
 import { createGame } from "../engine/deal.js";
 import {
   applyAction,
@@ -27,7 +35,8 @@ export interface RoomDeps {
   roomId: string;
   rules: Rules;
   roundCount: number;
-  moveDeadlineMs: number;
+  /** null: no turn clock. No deadline is armed and `deadlineAt` stays null. */
+  moveDeadlineMs: number | null;
   reconnectGraceMs: number;
   clock: Clock;
   timers: Timers;
@@ -37,6 +46,10 @@ export interface RoomDeps {
   onFinished: (roomId: string) => void;
   logger: Logger;
   seed: number | null;
+  /** Sent on every roomState. */
+  mode: RoomMode;
+  /** Catalog card ids per player, dealt as that player's first hand. */
+  openingHands?: Partial<Record<PlayerId, readonly string[]>>;
 }
 
 interface SeatRef {
@@ -99,6 +112,7 @@ export class Room {
       rules: this.deps.rules,
       roundCount: this.deps.roundCount,
       seed: this.deps.seed ?? Math.floor(Math.random() * 0x7fffffff),
+      ...(this.deps.openingHands ? { openingHands: this.deps.openingHands } : {}),
     });
     this.armDeadline();
     this.broadcast();
@@ -107,8 +121,14 @@ export class Room {
 
   protected armDeadline(): void {
     this.cancelDeadline?.();
-    this.deadlineAt = this.deps.clock.now() + this.deps.moveDeadlineMs;
-    this.cancelDeadline = this.deps.timers.schedule(this.deps.moveDeadlineMs, () =>
+    const moveDeadlineMs = this.deps.moveDeadlineMs;
+    if (moveDeadlineMs === null) {
+      this.cancelDeadline = null;
+      this.deadlineAt = null;
+      return;
+    }
+    this.deadlineAt = this.deps.clock.now() + moveDeadlineMs;
+    this.cancelDeadline = this.deps.timers.schedule(moveDeadlineMs, () =>
       this.guard("move deadline", () => this.onDeadline()),
     );
   }
@@ -153,7 +173,7 @@ export class Room {
     const gameView = viewFor(state, seatRef.id, deadlineAt);
     return {
       ...gameView,
-      mode: "match", // every room is a match until practice rooms exist
+      mode: this.deps.mode,
       you: { ...gameView.you, appearance: seatRef.appearance },
       opponent: { ...gameView.opponent, appearance: this.opponentOf(seatRef.id)?.appearance ?? null },
     };
