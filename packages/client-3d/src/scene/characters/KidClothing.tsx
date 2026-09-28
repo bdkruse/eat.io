@@ -168,10 +168,11 @@ function HoodieDetails({
       <mesh geometry={arc(0.07, 0.021, Math.PI * 2, detail === "high" ? 20 : 10)} material={shirt} position={[0, 0.412, 0]} rotation={[Math.PI / 2, 0, 0]} />
       {catEars &&
         ([-1, 1] as const).map((side) => (
-          // High on the sides of the hood, so the tips peek out past the head from the front.
-          <group key={side} position={[side * 0.15, 0.49, -0.1]} rotation={[-0.15, 0, -side * 0.8]}>
-            <mesh geometry={cone(0.046, 0.09)} material={shirt} position={[0, 0.036, 0]} scale={[1, 1, 0.55]} />
-            <mesh geometry={cone(0.027, 0.055)} material={toon(EAR_PINK)} position={[0, 0.03, 0.017]} scale={[1, 1, 0.3]} />
+          // High on the sides of the hood, leaning out, so the whole ear stands clear of the
+          // head's outline from the front and from the table.
+          <group key={side} position={[side * 0.2, 0.55, -0.1]} rotation={[-0.15, 0, -side * 0.5]}>
+            <mesh geometry={cone(0.092, 0.18)} material={shirt} position={[0, 0.072, 0]} scale={[1, 1, 0.55]} />
+            <mesh geometry={cone(0.054, 0.11)} material={toon(EAR_PINK)} position={[0, 0.06, 0.034]} scale={[1, 1, 0.3]} />
           </group>
         ))}
       {/* The front pocket. */}
