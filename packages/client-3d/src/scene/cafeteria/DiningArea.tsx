@@ -1,15 +1,15 @@
 import { useMemo } from "react";
 import { BoxGeometry, CylinderGeometry, SphereGeometry } from "three";
-import { randomAppearance, type Appearance } from "../../appearance/appearance.js";
+import type { Appearance } from "../../appearance/appearance.js";
+import { crowdAppearance } from "../../appearance/crowdAppearance.js";
 import { createRandom } from "../../lib/seededRandom.js";
 import { Kid } from "../characters/Kid.js";
 import type { Animation } from "../characters/poses.js";
 import { sharedGeometry, toon } from "../materials.js";
 import { keepsKid, type DetailBudget } from "../detail.js";
-import { DINING_TABLE, DINING_TABLES } from "./layout.js";
+import { DINER_SEATS, DINING_TABLE, DINING_TABLES } from "./layout.js";
 import { LunchTable } from "./LunchTable.js";
 
-const SEAT_XS = [-1.2, -0.6, 0, 0.6, 1.2];
 const BENCH_OFFSET = 0.8;
 
 const trayGeometry = () => sharedGeometry("smallTray", () => new BoxGeometry(0.4, 0.022, 0.3));
@@ -44,25 +44,17 @@ function pickAnimation(roll: number): Animation {
 
 function seatKids(tableIndex: number): SeatedKid[] {
   const random = createRandom(1000 + tableIndex * 97);
-  const kids: SeatedKid[] = [];
-  for (const side of [1, -1] as const) {
-    for (const x of SEAT_XS) {
-      // Most seats are taken; a few gaps keep it from looking like a school photo.
-      if (!random.chance(0.72)) continue;
-      kids.push({
-        key: `${side}:${x}`,
-        appearance: randomAppearance(random.range(0, 1e9) | 0),
-        animation: pickAnimation(random.next()),
-        phase: random.next(),
-        x: x + random.range(-0.06, 0.06),
-        side,
-        mealColors: [random.pick(MEAL_COLORS), random.pick(MEAL_COLORS), random.pick(MEAL_COLORS)],
-        trayColor: random.pick(TRAY_COLORS),
-        apple: random.chance(0.3),
-      });
-    }
-  }
-  return kids;
+  return DINER_SEATS[tableIndex]!.map((seat) => ({
+    key: `${seat.side}:${seat.x}`,
+    appearance: crowdAppearance(seat.crowdIndex),
+    animation: pickAnimation(random.next()),
+    phase: random.next(),
+    x: seat.x + random.range(-0.06, 0.06),
+    side: seat.side,
+    mealColors: [random.pick(MEAL_COLORS), random.pick(MEAL_COLORS), random.pick(MEAL_COLORS)],
+    trayColor: random.pick(TRAY_COLORS),
+    apple: random.chance(0.3),
+  }));
 }
 
 export function DiningArea({ budget }: { budget: DetailBudget }) {

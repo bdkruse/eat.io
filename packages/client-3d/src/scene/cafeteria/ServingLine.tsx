@@ -3,10 +3,11 @@ import { useFrame } from "@react-three/fiber";
 import { useRef } from "react";
 import { SphereGeometry, type Group } from "three";
 import { randomAppearance, type Appearance } from "../../appearance/appearance.js";
+import { crowdAppearance } from "../../appearance/crowdAppearance.js";
 import { Kid } from "../characters/Kid.js";
 import { sharedGeometry, toon, unlit } from "../materials.js";
 import { keepsKid, type DetailBudget } from "../detail.js";
-import { ROOM, SERVING_LINE } from "./layout.js";
+import { LINE_SPOTS, lineCrowdIndex, ROOM, SERVING_LINE } from "./layout.js";
 import { signTexture } from "./textures.js";
 
 const STEEL = "#c3c9cd";
@@ -164,23 +165,22 @@ function Steam({ seed }: { seed: number }) {
 
 /** Kids waiting their turn, shuffling forward and chatting with the one behind. */
 function LineOfKids({ keepEvery }: { keepEvery: number }) {
-  const spots = [-8.4, -7.5, -6.5, -5.6, -4.6, -3.7, -2.6, -1.8];
   const shufflers = useRef<(Group | null)[]>([]);
   useFrame(({ clock }) => {
     shufflers.current.forEach((kid, index) => {
       if (!kid) return;
       // Everyone shuffles a half step forward, then settles, like a real line.
       const step = ((clock.elapsedTime * 0.12 + index * 0.05) % 1) * 0.25;
-      kid.position.x = spots[index]! - step;
+      kid.position.x = LINE_SPOTS[index]! - step;
     });
   });
   return (
     <group>
-      {spots.map((x, index) =>
+      {LINE_SPOTS.map((x, index) =>
         !keepsKid(index, keepEvery) ? null : (
         <group key={x} ref={(node) => void (shufflers.current[index] = node)} position={[x, 0, SERVING_LINE.lineZ]}>
           <Kid
-            appearance={randomAppearance(200 + index)}
+            appearance={crowdAppearance(lineCrowdIndex(index))}
             pose="stand"
             animation={index % 3 === 1 ? "chat" : index % 3 === 2 ? "listen" : "carry"}
             carrying={index % 3 === 0}

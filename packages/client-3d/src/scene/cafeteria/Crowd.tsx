@@ -1,12 +1,13 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import { MathUtils, type Group } from "three";
-import { randomAppearance, type Appearance } from "../../appearance/appearance.js";
+import type { Appearance } from "../../appearance/appearance.js";
+import { crowdAppearance } from "../../appearance/crowdAppearance.js";
 import { createRandom } from "../../lib/seededRandom.js";
 import { Kid } from "../characters/Kid.js";
 import type { Animation } from "../characters/poses.js";
 import type { DetailBudget } from "../detail.js";
-import { WALK_LOOPS } from "./layout.js";
+import { WALK_LOOPS, walkerCrowdIndex, WALKERS_PER_LOOP } from "./layout.js";
 
 interface Walker {
   appearance: Appearance;
@@ -51,8 +52,6 @@ function pointOnLoop(loop: readonly (readonly [number, number])[], distance: num
   }
 }
 
-const WALKERS_PER_LOOP = 3;
-
 export function Crowd({ budget }: { budget: DetailBudget }) {
   const walkers = useMemo<Walker[]>(() => {
     const random = createRandom(77);
@@ -61,7 +60,7 @@ export function Crowd({ budget }: { budget: DetailBudget }) {
         const length = loopLength(loop);
         const carrying = random.chance(0.4);
         return {
-          appearance: randomAppearance(500 + loopIndex * 10 + index),
+          appearance: crowdAppearance(walkerCrowdIndex(loopIndex, index)),
           loop,
           loopLength: length,
           speed: random.range(0.75, 1.05),

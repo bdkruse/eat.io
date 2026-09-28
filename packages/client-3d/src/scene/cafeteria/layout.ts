@@ -1,3 +1,5 @@
+import { createRandom } from "../../lib/seededRandom.js";
+
 /**
  * The floor plan of the lunchroom, in meters. The game table sits at the origin, near the
  * front of the room; everything else is arranged around it.
@@ -68,3 +70,53 @@ export const WALK_LOOPS: readonly (readonly [number, number])[][] = [
     [AISLE_X.left, AISLE_Z.entry],
   ],
 ];
+
+// ---------- the crowd ----------
+// Every crowd kid has its own index into `crowdAppearance`, from one shared space: the
+// walkers, then the lunch line, then the seated diners. The lunch staff and the custodian
+// are grown-ups with their own looks, so they are not in it.
+
+export const WALKERS_PER_LOOP = 3;
+
+/** The walker's crowd index. The first walker on each loop (the one low detail keeps)
+ *  comes first, so the kids low detail draws still start the tone order. */
+export function walkerCrowdIndex(loopIndex: number, indexOnLoop: number): number {
+  return indexOnLoop * WALK_LOOPS.length + loopIndex;
+}
+
+/** Where the kids waiting in the lunch line stand, along `SERVING_LINE.lineZ`. */
+export const LINE_SPOTS = [-8.4, -7.5, -6.5, -5.6, -4.6, -3.7, -2.6, -1.8] as const;
+
+const FIRST_LINE_CROWD_INDEX = WALK_LOOPS.length * WALKERS_PER_LOOP;
+
+export function lineCrowdIndex(spotIndex: number): number {
+  return FIRST_LINE_CROWD_INDEX + spotIndex;
+}
+
+/** Seat positions along each side of a dining table, from its center. */
+export const DINING_SEAT_XS = [-1.2, -0.6, 0, 0.6, 1.2] as const;
+
+export interface DinerSeat {
+  side: 1 | -1;
+  x: number;
+  crowdIndex: number;
+}
+
+/** The taken seats at each dining table, fixed so the crowd index of every diner is known
+ *  here. Most seats are taken; a few gaps keep it from looking like a school photo. */
+export const DINER_SEATS: readonly (readonly DinerSeat[])[] = (() => {
+  let nextCrowdIndex = FIRST_LINE_CROWD_INDEX + LINE_SPOTS.length;
+  return DINING_TABLES.map((_, tableIndex) => {
+    const random = createRandom(2000 + tableIndex * 53);
+    const seats: DinerSeat[] = [];
+    for (const side of [1, -1] as const) {
+      for (const x of DINING_SEAT_XS) {
+        if (random.chance(0.72)) seats.push({ side, x, crowdIndex: nextCrowdIndex++ });
+      }
+    }
+    return seats;
+  });
+})();
+
+/** How many crowd kids the room holds at full detail. */
+export const CROWD_SIZE = FIRST_LINE_CROWD_INDEX + LINE_SPOTS.length + DINER_SEATS.flat().length;
