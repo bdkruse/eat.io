@@ -28,6 +28,7 @@ import {
   SKIN_TONES,
   visibleClothing,
   wearingShopItem,
+  wearShopItem,
   withoutLockedItems,
 } from "../src/appearance/appearance.js";
 
@@ -92,6 +93,47 @@ test("wearing a shop item sets just the field it unlocks", () => {
 
 test("wearing an unknown item id leaves the look as it is", () => {
   expect(wearingShopItem(DEFAULT_APPEARANCE, "extra.nothing")).toBe(DEFAULT_APPEARANCE);
+});
+
+test("wearShopItem puts a shop graphic on a Graphic T, from a tee or a hoodie", () => {
+  const withTaco = wearShopItem(DEFAULT_APPEARANCE, "graphic.taco");
+  expect(withTaco).toEqual({ ...DEFAULT_APPEARANCE, top: "graphicTee", graphic: "taco" });
+  expect(visibleClothing(withTaco).graphic).toBe("taco");
+  const inHoodie = { ...DEFAULT_APPEARANCE, top: "hoodie" } as const;
+  expect(wearShopItem(inHoodie, "graphic.rainbow")).toEqual({ ...inHoodie, top: "graphicTee", graphic: "rainbow" });
+});
+
+test("wearShopItem takes a dress off so a shop graphic shows, and keeps overalls on", () => {
+  for (const dress of ["dress", "sparklyDress"] as const) {
+    const inDress = { ...DEFAULT_APPEARANCE, onePiece: dress, bottom: "skirt" } as const;
+    const withDuck = wearShopItem(inDress, "graphic.rubberDuck");
+    expect(withDuck).toEqual({ ...inDress, top: "graphicTee", onePiece: "none", graphic: "rubberDuck" });
+    expect(visibleClothing(withDuck).graphic).toBe("rubberDuck");
+  }
+  const inOveralls = { ...DEFAULT_APPEARANCE, onePiece: "overalls" } as const;
+  const withDinosaur = wearShopItem(inOveralls, "graphic.dinosaur");
+  expect(withDinosaur).toEqual({ ...inOveralls, top: "graphicTee", graphic: "dinosaur" });
+  expect(visibleClothing(withDinosaur).graphic).toBe("dinosaur");
+});
+
+test("wearShopItem takes a dress off so the Cat-Ear Hoodie shows", () => {
+  for (const dress of ["dress", "sparklyDress"] as const) {
+    const inDress = { ...DEFAULT_APPEARANCE, onePiece: dress } as const;
+    const withCatEars = wearShopItem(inDress, "top.catEarHoodie");
+    expect(withCatEars).toEqual({ ...inDress, top: "catEarHoodie", onePiece: "none" });
+    expect(visibleClothing(withCatEars).top).toBe("catEarHoodie");
+  }
+  const inOveralls = { ...DEFAULT_APPEARANCE, onePiece: "overalls" } as const;
+  expect(wearShopItem(inOveralls, "top.catEarHoodie")).toEqual({ ...inOveralls, top: "catEarHoodie" });
+});
+
+test("wearShopItem puts the Sparkly Dress and every other item on like wearingShopItem", () => {
+  expect(wearShopItem(DEFAULT_APPEARANCE, "onePiece.sparklyDress")).toEqual({ ...DEFAULT_APPEARANCE, onePiece: "sparklyDress" });
+  expect(wearShopItem(DEFAULT_APPEARANCE, "extra.crown")).toEqual(wearingShopItem(DEFAULT_APPEARANCE, "extra.crown"));
+  expect(wearShopItem(DEFAULT_APPEARANCE, "extra.crown")).toEqual({ ...DEFAULT_APPEARANCE, accessory: "crown" });
+  const inDress = { ...DEFAULT_APPEARANCE, onePiece: "dress" } as const;
+  expect(wearShopItem(inDress, "extra.crown")).toEqual({ ...inDress, accessory: "crown" });
+  expect(wearShopItem(DEFAULT_APPEARANCE, "extra.nothing")).toBe(DEFAULT_APPEARANCE);
 });
 
 test("withoutLockedItems swaps each unowned shop value for its field's first free value and keeps the rest", () => {

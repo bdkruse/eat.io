@@ -156,6 +156,22 @@ export function wearingShopItem(appearance: Appearance, itemId: string): Appeara
 }
 
 /**
+ * The look with this shop item put on so that it shows: the shop's try-on and the look
+ * worn after a buy. A graphic also puts on a graphic T, and a graphic or a top takes off
+ * a dress, which would cover it. Overalls stay, since they go over the top. Every other
+ * item changes only its own field, as `wearingShopItem` does. The pieces it puts on are
+ * free, so the look never asks for anything the player does not own.
+ */
+export function wearShopItem(appearance: Appearance, itemId: string): Appearance {
+  const field = SHOP_ITEMS.find((shopItem) => shopItem.id === itemId)?.unlocks.field;
+  const withItem = wearingShopItem(appearance, itemId);
+  if (field !== "graphic" && field !== "top") return withItem;
+  const withTop: Appearance = field === "graphic" ? { ...withItem, top: "graphicTee" } : withItem;
+  const wearingDress = withTop.onePiece === "dress" || withTop.onePiece === "sparklyDress";
+  return wearingDress ? { ...withTop, onePiece: "none" } : withTop;
+}
+
+/**
  * The look with every shop value the player does not own swapped for that field's first
  * free value, keeping the rest. A guest owns nothing. Unchanged (the same object) when
  * nothing is locked. Mirrors the server's own rule for a session look on logout, which it

@@ -20,7 +20,7 @@ import {
 } from "./selection.js";
 import {
   DEFAULT_APPEARANCE,
-  wearingShopItem,
+  wearShopItem,
   withoutLockedItems,
   type Appearance,
 } from "../appearance/appearance.js";
@@ -189,8 +189,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     const purchase = state.shopPurchase;
     if (purchase === null || purchase === previousPurchaseRef.current) return;
     previousPurchaseRef.current = purchase;
-    setAppearance((current) => wearingShopItem(current, purchase.itemId));
-    saveAppearance(wearingShopItem(savedAppearanceRef.current, purchase.itemId));
+    setAppearance((current) => wearShopItem(current, purchase.itemId));
+    saveAppearance(wearShopItem(savedAppearanceRef.current, purchase.itemId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.shopPurchase]);
 
@@ -298,7 +298,7 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   // Memoized so the kid's look keeps its identity between renders while previewing.
   const shownAppearance = useMemo(
     () =>
-      openPanel === "shop" && shopSelectedItemId !== null ? wearingShopItem(appearance, shopSelectedItemId) : appearance,
+      openPanel === "shop" && shopSelectedItemId !== null ? wearShopItem(appearance, shopSelectedItemId) : appearance,
     [openPanel, shopSelectedItemId, appearance],
   );
 

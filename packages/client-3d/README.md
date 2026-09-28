@@ -243,10 +243,11 @@ always looks the same.
 
 A logged-in player sees a Shop button in the top bar. The shop lists every item for
 sale, grouped by kind, with its price. Items you own say "Owned". Picking an item tries it
-on your kid, and nothing is saved. Picking it again takes it off. Buy is disabled for an
-item you own, and for one you cannot afford, with a note of how much more you need. A buy
-spends Lunch Money, then the kid wears the item and the look is saved. Closing a shop
-opened from Customize returns you to Customize.
+on your kid, and nothing is saved. A shirt graphic comes on a Graphic T, and a graphic or
+the Cat-Ear Hoodie takes off a dress, so the item always shows. Picking it again takes it
+off. Buy is disabled for an item you own, and for one you cannot afford, with a note of
+how much more you need. A buy spends Lunch Money, then the kid wears the item the same way
+and the look is saved. Closing a shop opened from Customize returns you to Customize.
 
 ## Admin and Creator panels
 
