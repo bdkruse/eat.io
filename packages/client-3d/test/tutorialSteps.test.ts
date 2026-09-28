@@ -98,7 +98,8 @@ function tutorialDriver(firstView: RoomStateMessage) {
       return record();
     },
     submit() {
-      fire({ kind: "submit" });
+      const submittedCard = view.you.hand.find((handCard) => handCard.instanceId === selection.cardInstanceId);
+      fire({ kind: "submit", cardId: submittedCard!.id });
       selection = emptySelection;
       view = { ...view, you: { ...view.you, submitted: true } };
       return record();
@@ -235,6 +236,71 @@ describe("tutorialPrompt and advanceTutorial", () => {
     expect(afterRoomState?.text).toBe("+1 all adds one food to every tray on your side. It needs no tray");
   });
 
+  /** The round-4 hand of the scripted path: the opening hand less the cards of rounds 1 to 3. */
+  const ROUND_FOUR_HAND = [
+    card("servings2x2", "c4"),
+    card("add1x2", "c5"),
+    card("add3x1", "c6"),
+    card("add1x2", "c7"),
+    card("mul2x1", "c8"),
+  ];
+  const ROUND_FIVE_HAND = [card("add1x2", "c5"), card("add3x1", "c6"), card("add1x2", "c7"), card("add3x1", "c9")];
+  const ROUND_FIVE_TEXT = "You are on your own now. Play any card";
+
+  test("round 4 has no watch step when another card is played", () => {
+    const driver = tutorialDriver(practiceView({ roundIndex: 3, hand: ROUND_FOUR_HAND }));
+    expect(driver.prompt()).toMatchObject({ suggestedCardId: "servings2x2", anchor: "card" });
+    driver.select("c8");
+    driver.target("t2");
+    expect(driver.prompt()).toMatchObject({ anchor: "end-turn", advance: "submit" });
+    expect(driver.submit()).toBeNull();
+    expect(tutorialWatchingResolvedRound(driver.progress(), practiceView({ roundIndex: 4 }))).toBe(false);
+    const round = driver.newRound([...withoutInstance(ROUND_FOUR_HAND, "c8"), card("add3x1", "c9")]);
+    expect(round.whileWatching?.text).toBe(ROUND_FIVE_TEXT);
+    expect(round.afterRoomState?.text).toBe(ROUND_FIVE_TEXT);
+    expect(driver.shown.map((prompt) => prompt.anchor)).not.toContain("servings-marker");
+  });
+
+  test("round 4 has no watch step when Extra Servings is gone from the hand", () => {
+    const handWithoutServings = withoutInstance(ROUND_FOUR_HAND, "c4");
+    const driver = tutorialDriver(practiceView({ roundIndex: 3, hand: handWithoutServings }));
+    expect(driver.prompt()).toMatchObject({ text: "Play any card", anchor: "hand", advance: "select" });
+    driver.select("c6");
+    driver.target("t1");
+    expect(driver.submit()).toBeNull();
+    const round = driver.newRound(ROUND_FIVE_HAND);
+    expect(round.whileWatching?.text).toBe(ROUND_FIVE_TEXT);
+    expect(driver.shown.map((prompt) => prompt.anchor)).not.toContain("servings-marker");
+  });
+
+  test("round 4 still watches the marker after Extra Servings is played", () => {
+    const driver = tutorialDriver(practiceView({ roundIndex: 3, hand: ROUND_FOUR_HAND }));
+    driver.select("c4");
+    expect(driver.submit()).toMatchObject({ anchor: "servings-marker", advance: "resolve" });
+    const round = driver.newRound(ROUND_FIVE_HAND, { extraServings: [2, 2] });
+    expect(round.whileWatching).toMatchObject({ anchor: "servings-marker", advance: "resolve" });
+    expect(round.afterRoomState?.text).toBe(ROUND_FIVE_TEXT);
+  });
+
+  test("a card that needs trays in rounds 3 and 4 gets the tray step, then End turn", () => {
+    const trayText = "Tap a tray to put the food on it. The front tray is eaten next";
+    const roundThreeHand = [card("addAll1", "c3"), ...ROUND_FOUR_HAND.slice(0, 4)];
+    for (const [roundIndex, hand] of [
+      [2, roundThreeHand],
+      [3, ROUND_FOUR_HAND],
+    ] as const) {
+      const driver = tutorialDriver(practiceView({ roundIndex, hand }));
+      driver.select("c5");
+      expect(driver.prompt()).toMatchObject({ text: trayText, anchor: "tray-target", advance: "target" });
+      driver.target("t1");
+      expect(driver.prompt()).toMatchObject({ text: trayText, anchor: "tray-target" });
+      driver.target("t2");
+      expect(driver.prompt()).toMatchObject({ anchor: "end-turn", advance: "submit" });
+      driver.clearSelection();
+      expect(driver.prompt()).toMatchObject({ anchor: "card", advance: "select" });
+    }
+  });
+
   test("a card that takes no tray skips the tray step in round 1", () => {
     const driver = tutorialDriver(practiceView());
     driver.next();
@@ -295,7 +361,7 @@ describe("tutorialPrompt and advanceTutorial", () => {
   test("an event that does not match the prompt leaves the progress alone", () => {
     const view = practiceView();
     const welcome = tutorialPrompt(view, emptySelection, FRESH_TUTORIAL_PROGRESS);
-    expect(advanceTutorial(FRESH_TUTORIAL_PROGRESS, { kind: "submit" }, welcome, view)).toEqual(FRESH_TUTORIAL_PROGRESS);
+    expect(advanceTutorial(FRESH_TUTORIAL_PROGRESS, { kind: "submit", cardId: "add3x1" }, welcome, view)).toEqual(FRESH_TUTORIAL_PROGRESS);
     expect(advanceTutorial(FRESH_TUTORIAL_PROGRESS, { kind: "next" }, null, view)).toEqual(FRESH_TUTORIAL_PROGRESS);
     expect(advanceTutorial(FRESH_TUTORIAL_PROGRESS, { kind: "roomState" }, welcome, view)).toEqual(FRESH_TUTORIAL_PROGRESS);
   });

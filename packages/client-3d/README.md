@@ -131,8 +131,10 @@ Extra Servings marker.
 
 A prompt suggests a card but never forces it. If you play another card, the tutorial
 still moves on. If the suggested card is no longer in your hand, the prompt says "Play
-any card". Rounds 1 and 4 end on a "watch" prompt. It stays up for up to 2.5 seconds
-after the round, so you can see the tray get eaten or the marker appear. A Skip button
+any card". In rounds 3 and 4, a card you pick that needs trays gets round 1's tray prompt
+until its trays are chosen. Rounds 1 and 4 end on a "watch" prompt. It stays up for up to
+2.5 seconds after the round, so you can see the tray get eaten or the marker appear.
+Round 4's watch prompt shows only if you played Extra Servings. A Skip button
 stays on screen for the whole game. It leaves the room and returns to the menu.
 
 The game over panel says "You are ready!" with the score. It offers "Find a game", which

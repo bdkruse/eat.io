@@ -302,7 +302,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     [openPanel, shopSelectedItemId, appearance],
   );
 
-  const targetCount = selectYourCard(state, selection.cardInstanceId)?.targets ?? 0;
+  const selectedCard = selectYourCard(state, selection.cardInstanceId);
+  const targetCount = selectedCard?.targets ?? 0;
   const ready = isSubmittable(selection, targetCount);
 
   const chooseCard = useCallback(
@@ -327,11 +328,11 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   );
 
   const endTurn = useCallback(() => {
-    if (!ready || !selection.cardInstanceId) return;
-    submitTurn(selection.cardInstanceId, selection.targetTrayIds);
+    if (!ready || !selectedCard) return;
+    submitTurn(selectedCard.instanceId, selection.targetTrayIds);
     setSelection(emptySelection);
-    noteTutorialEvent({ kind: "submit" });
-  }, [ready, selection, submitTurn, noteTutorialEvent]);
+    noteTutorialEvent({ kind: "submit", cardId: selectedCard.id });
+  }, [ready, selectedCard, selection, submitTurn, noteTutorialEvent]);
 
   const tutorialNext = useCallback(() => noteTutorialEvent({ kind: "next" }), [noteTutorialEvent]);
 
