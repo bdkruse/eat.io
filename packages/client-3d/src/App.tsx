@@ -3,7 +3,7 @@ import { ConnectionLostBanner } from "./ui/overlays/ConnectionLostBanner.js";
 import { OpponentDroppedModal } from "./ui/overlays/OpponentDroppedModal.js";
 import { RejectionToast } from "./ui/overlays/RejectionToast.js";
 import { GameProvider, useGame } from "./state/GameProvider.js";
-import { selectScreen } from "./state/gameState.js";
+import { selectPracticeRoom, selectScreen } from "./state/gameState.js";
 import { Stage } from "./scene/Stage.js";
 import { LocalStateProvider, useLocalState } from "./state/LocalState.js";
 import { AdminPanel } from "./ui/AdminPanel.js";
@@ -18,6 +18,7 @@ import { ProfilePanel } from "./ui/ProfilePanel.js";
 import { QueuePanel } from "./ui/QueuePanel.js";
 import { ShopPanel } from "./ui/ShopPanel.js";
 import { TopBar } from "./ui/TopBar.js";
+import { TutorialCallout } from "./ui/TutorialCallout.js";
 
 /** Panels over the canvas. Each fades on its own, so screens cross-dissolve as the camera moves. */
 function Interface() {
@@ -68,6 +69,9 @@ function Interface() {
       </Fade>
       <Fade show={screen === "game"} className="dock dock--bottom">
         <HandBar />
+      </Fade>
+      <Fade show={screen === "game" && selectPracticeRoom(state)} className="dock dock--tutorial">
+        <TutorialCallout />
       </Fade>
       <Fade show={screen === "gameOver" && showScreenPanel} className="dock dock--left">
         <GameOverPanel />

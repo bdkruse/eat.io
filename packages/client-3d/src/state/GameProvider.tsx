@@ -37,6 +37,8 @@ export interface GameApi {
   cancelQueue(): void;
   createPrivate(): void;
   joinPrivate(code: string): void;
+  /** A practice game against the server's bot: the guided tutorial (spec §5). */
+  startPractice(): void;
   submitTurn(cardInstanceId: string, targetTrayIds: string[]): void;
   leaveRoom(): void;
   playAgain(): void;
@@ -197,6 +199,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       cancelQueue: () => send({ type: "queueCancel" }),
       createPrivate: () => send({ type: "roomCreatePrivate" }),
       joinPrivate: (code) => send({ type: "roomJoinPrivate", code }),
+      startPractice: () => send({ type: "practiceStart" }),
       submitTurn: (cardInstanceId, targetTrayIds) =>
         send({ type: "submitTurn", cardInstanceId, targetTrayIds }),
       leaveRoom: () => send({ type: "roomLeave" }),

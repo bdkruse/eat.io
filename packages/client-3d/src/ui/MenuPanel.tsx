@@ -2,6 +2,7 @@ import { useState } from "react";
 import { initialServerUrl, serverIsConfigured } from "../config.js";
 import { useGame } from "../state/GameProvider.js";
 import { useLocalState } from "../state/LocalState.js";
+import { browserStorageOrNull, markTutorialHintSeen, tutorialHintSeen } from "../tutorial/tutorialHint.js";
 import { AccountForm } from "./AccountForm.js";
 
 export type MenuTab = "guest" | "login" | "register";
@@ -31,12 +32,14 @@ export function MenuPanel({
     joinQueue,
     createPrivate,
     joinPrivate,
+    startPractice,
     setName,
     dismissAccountError,
   } = useGame();
   const { setCustomizing } = useLocalState();
   const [serverUrl, setServerUrl] = useState(initialServerUrl());
   const [roomCode, setRoomCode] = useState("");
+  const [hintSeen, setHintSeen] = useState(() => tutorialHintSeen(browserStorageOrNull()));
   const askForServer = !serverIsConfigured();
 
   const connected = state.connection.phase === "connected" && state.identity !== null;
@@ -45,6 +48,16 @@ export function MenuPanel({
   const busy = state.accountPending || state.connection.phase === "connecting" || waking;
   const ready = state.name.trim().length > 0 && serverUrl.trim().length > 0;
   const isGuestAccount = connected && state.account === null;
+
+  // Pressing How to play or closing the hint both count as seeing it (spec §5.1).
+  const closeHint = () => {
+    markTutorialHintSeen(browserStorageOrNull());
+    setHintSeen(true);
+  };
+  const startTutorial = () => {
+    closeHint();
+    startPractice();
+  };
 
   const pickTab = (tab: MenuTab) => {
     dismissAccountError();
@@ -132,6 +145,17 @@ export function MenuPanel({
           <button className="button button--primary" onClick={joinQueue}>
             Find a game
           </button>
+          <button className="button button--secondary" onClick={startTutorial}>
+            How to play
+          </button>
+          {!hintSeen && (
+            <p className="tutorial-hint" role="note">
+              New here? Learn to play in a minute.
+              <button className="tutorial-hint__close" aria-label="Close the hint" onClick={closeHint}>
+                ×
+              </button>
+            </p>
+          )}
           <button className="button button--secondary" onClick={createPrivate}>
             Create a private room
           </button>

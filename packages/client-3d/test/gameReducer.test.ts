@@ -7,6 +7,7 @@ import {
   selectBackToMenuStaysConnected,
   selectLunchMoney,
   selectLunchMoneyEarned,
+  selectPracticeRoom,
   selectScreen,
   type AppState,
 } from "../src/state/gameState.js";
@@ -902,4 +903,31 @@ test("the balance is the profile's, so a profile after the last shop reply is wh
   state = server(state, { type: "profile", profile: profile({ lunchMoney: 250 }) });
   expect(selectLunchMoney(state)).toBe(250);
   expect(selectLunchMoney(welcomed())).toBeNull();
+});
+
+// ---------- the tutorial: practice rooms ----------
+
+test("the reducer keeps the room's mode from roomState", () => {
+  const practice = server(welcomed(), room({ mode: "practice", roundCount: 6, deadlineAt: null }));
+  expect(practice.room?.mode).toBe("practice");
+  expect(selectPracticeRoom(practice)).toBe(true);
+  const match = server(welcomed(), room());
+  expect(match.room?.mode).toBe("match");
+  expect(selectPracticeRoom(match)).toBe(false);
+  expect(selectPracticeRoom(welcomed())).toBe(false);
+});
+
+test("a finished practice game earns no Lunch Money, so the line is hidden", () => {
+  let state = loggedIn({ lunchMoney: 100 });
+  state = server(state, room({ mode: "practice", roundCount: 6, deadlineAt: null }));
+  state = server(state, { type: "gameOver", result: { kind: "win", scores: { a: 12, b: 7 } } });
+  expect(selectLunchMoneyEarned(state)).toBeNull();
+});
+
+test("leaving a practice room goes back to the menu", () => {
+  let state = server(welcomed(), room({ mode: "practice", roundCount: 6, deadlineAt: null }));
+  expect(selectScreen(state)).toBe("game");
+  state = server(state, { type: "roomLeft" });
+  expect(state.room).toBeNull();
+  expect(selectScreen(state)).toBe("connect");
 });

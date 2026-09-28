@@ -18,9 +18,9 @@ import { TRAY_WELLS, trayFood } from "./trayFood.js";
 const PLASTIC = "#f3ecdc";
 const WELL = "#e2d9c4";
 const SEAT_ACCENT: Record<Side, string> = { near: "#d94f3d", far: "#4a7fa5" };
-/** Gold — shared by the selected-tray highlight and the boosted-tray glow (§9 reuses it
- *  rather than introducing a second highlight color). */
-const SELECTED_GLOW = "#ffd34d";
+/** Gold — shared by the selected-tray highlight, the boosted-tray glow, and the tutorial's
+ *  highlights (§9 reuses it rather than introducing a second highlight color). */
+export const SELECTED_GLOW = "#ffd34d";
 const MILLIMETERS = 0.001;
 
 export interface Tray3DProps {
@@ -36,6 +36,8 @@ export interface Tray3DProps {
   /** Arrived already covered by a pending extra-servings bonus — a brief highlight as it
    *  slides on, view-only (§9). */
   boosted: boolean;
+  /** The practice game's prompt points at your trays: the same pulsing glow as `boosted`. */
+  highlighted: boolean;
   selected: boolean;
   /** 1-based pick order, shown only for multi-target cards. */
   order: number | null;
@@ -43,7 +45,20 @@ export interface Tray3DProps {
   onClick?: () => void;
 }
 
-export function Tray3D({ tray, side, slot, slotCount, fresh, eaten, boosted, selected, order, showLabel, onClick }: Tray3DProps) {
+export function Tray3D({
+  tray,
+  side,
+  slot,
+  slotCount,
+  fresh,
+  eaten,
+  boosted,
+  highlighted,
+  selected,
+  order,
+  showLabel,
+  onClick,
+}: Tray3DProps) {
   const group = useRef<Group>(null);
   const glow = useRef<Group>(null);
   const [hovered, setHovered] = useState(false);
@@ -74,12 +89,12 @@ export function Tray3D({ tray, side, slot, slotCount, fresh, eaten, boosted, sel
     const scaleTarget = eaten ? 0.15 : 1;
     node.scale.setScalar(MathUtils.damp(node.scale.x, scaleTarget, eaten ? 5 : 8, delta));
 
-    // The boosted glow pulses gently for however long the caller keeps `boosted` true —
-    // this animates only the glow mesh's own scale, never a shared material, so it cannot
-    // bleed into any other tray's highlight.
+    // The boosted glow pulses gently for however long the caller keeps `boosted` (or
+    // `highlighted`) true — this animates only the glow mesh's own scale, never a shared
+    // material, so it cannot bleed into any other tray's highlight.
     const glowNode = glow.current;
     if (glowNode) {
-      glowNode.visible = boosted && !eaten;
+      glowNode.visible = (boosted || highlighted) && !eaten;
       if (glowNode.visible) {
         glowNode.scale.setScalar(1 + Math.sin(clock.elapsedTime * 6) * 0.08);
       }

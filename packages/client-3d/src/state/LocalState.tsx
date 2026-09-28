@@ -25,6 +25,16 @@ import {
   type Appearance,
 } from "../appearance/appearance.js";
 import type { DetailLevel } from "../scene/detail.js";
+import {
+  FRESH_TUTORIAL_PROGRESS,
+  TUTORIAL_WATCH_MS,
+  advanceTutorial,
+  tutorialPrompt as tutorialPromptFor,
+  tutorialWatchingResolvedRound,
+  type TutorialEvent,
+  type TutorialProgress,
+  type TutorialPrompt,
+} from "../tutorial/tutorialSteps.js";
 
 /** Which single panel is docked left, if any. */
 export type OpenPanel = "customize" | "profile" | "admin" | "creator" | "shop" | null;
@@ -66,6 +76,10 @@ export interface LocalStateApi {
   clickTray: (trayId: string) => void;
   clearSelection: () => void;
   endTurn: () => void;
+  /** The practice game's prompt on screen, or null (a match, or no prompt this round). */
+  tutorialPrompt: TutorialPrompt | null;
+  /** The prompt's Next button. */
+  tutorialNext: () => void;
 }
 
 const LocalStateContext = createContext<LocalStateApi | null>(null);
@@ -106,6 +120,7 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const shopReturnsToCustomizeRef = useRef(false);
   const [detail, setDetail] = useState<DetailLevel>("high");
   const [selection, setSelection] = useState<Selection>(emptySelection);
+  const [tutorialProgress, setTutorialProgress] = useState<TutorialProgress>(FRESH_TUTORIAL_PROGRESS);
 
   const connected = state.connection.phase === "connected";
 
@@ -192,6 +207,43 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
     setSelection(emptySelection);
   }, [roundIndex]);
 
+  // The practice game's prompt, from the view, the pick, and how far the player has read.
+  const room = state.room;
+  const tutorialPrompt = useMemo(
+    () => (room ? tutorialPromptFor(room, selection, tutorialProgress) : null),
+    [room, selection, tutorialProgress],
+  );
+  const noteTutorialEvent = useCallback(
+    (event: TutorialEvent) => {
+      if (!room) return;
+      setTutorialProgress((current) => advanceTutorial(current, event, tutorialPrompt, room));
+    },
+    [room, tutorialPrompt],
+  );
+
+  // A new round derives the tutorial's progress again, and leaving the room resets it. When
+  // the round that just resolved ends on a resolve prompt ("Sam plays too…"), that prompt
+  // stays up a moment first, so the eaten tray can be watched: the server resolves the
+  // round the instant the second turn comes in, which would otherwise replace the prompt
+  // before anyone could read it.
+  const watchingResolvedRound = room !== null && tutorialWatchingResolvedRound(tutorialProgress, room);
+  useEffect(() => {
+    if (room === null) {
+      setTutorialProgress(FRESH_TUTORIAL_PROGRESS);
+      return;
+    }
+    const applyNewRound = () =>
+      setTutorialProgress((current) => advanceTutorial(current, { kind: "roomState" }, null, room));
+    if (!watchingResolvedRound) {
+      applyNewRound();
+      return;
+    }
+    const watchTimer = setTimeout(applyNewRound, TUTORIAL_WATCH_MS);
+    return () => clearTimeout(watchTimer);
+    // Only the round number matters here, not each new view within a round.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundIndex, watchingResolvedRound]);
+
   // A guest connection shares its local look, so the opponent sees it too. This must NOT
   // fire while a login or registration attempt is still in flight: `welcome` (which sets
   // identity) and `accountLoggedIn`/`accountError` (which resolve the attempt) are always
@@ -253,9 +305,13 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
   const targetCount = selectYourCard(state, selection.cardInstanceId)?.targets ?? 0;
   const ready = isSubmittable(selection, targetCount);
 
-  const chooseCard = useCallback((cardInstanceId: string) => {
-    setSelection((current) => selectCard(current, cardInstanceId));
-  }, []);
+  const chooseCard = useCallback(
+    (cardInstanceId: string) => {
+      setSelection((current) => selectCard(current, cardInstanceId));
+      noteTutorialEvent({ kind: "select" });
+    },
+    [noteTutorialEvent],
+  );
 
   const clickTray = useCallback(
     (trayId: string) => {
@@ -265,15 +321,19 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
         return;
       }
       setSelection(result.selection);
+      if (isSubmittable(result.selection, targetCount)) noteTutorialEvent({ kind: "target" });
     },
-    [selection, targetCount, noteLocalRejection],
+    [selection, targetCount, noteLocalRejection, noteTutorialEvent],
   );
 
   const endTurn = useCallback(() => {
     if (!ready || !selection.cardInstanceId) return;
     submitTurn(selection.cardInstanceId, selection.targetTrayIds);
     setSelection(emptySelection);
-  }, [ready, selection, submitTurn]);
+    noteTutorialEvent({ kind: "submit" });
+  }, [ready, selection, submitTurn, noteTutorialEvent]);
+
+  const tutorialNext = useCallback(() => noteTutorialEvent({ kind: "next" }), [noteTutorialEvent]);
 
   const api = useMemo<LocalStateApi>(
     () => ({
@@ -298,6 +358,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       clickTray,
       clearSelection: () => setSelection(emptySelection),
       endTurn,
+      tutorialPrompt,
+      tutorialNext,
     }),
     [
       appearance,
@@ -317,6 +379,8 @@ export function LocalStateProvider({ children }: { children: ReactNode }) {
       chooseCard,
       clickTray,
       endTurn,
+      tutorialPrompt,
+      tutorialNext,
     ],
   );
 

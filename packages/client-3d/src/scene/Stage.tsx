@@ -63,6 +63,7 @@ export function Stage() {
           targetCount={local.targetCount}
           interactive={screen === "game" && awaitingYou && !frozen}
           showLabels={screen === "game"}
+          tutorialAnchor={screen === "game" ? (local.tutorialPrompt?.anchor ?? null) : null}
           onTrayClick={local.clickTray}
         />
         <CameraRig shot={shot} />

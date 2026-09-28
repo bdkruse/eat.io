@@ -7,17 +7,19 @@ export interface ServingsMarkerProps {
   slotCount: number;
   /** Upcoming bonuses, index 0 first — public, same list as `YouView`/`OpponentView` (§4.3). */
   extraServings: number[];
+  /** The practice game's prompt points at the marker. */
+  highlighted?: boolean;
 }
 
 /**
  * The upcoming extra-servings bonuses, shown at the foot of a player's row of trays.
  * Hidden entirely once the list runs out, so it never lingers as an empty pill.
  */
-export function ServingsMarker({ side, slotCount, extraServings }: ServingsMarkerProps) {
+export function ServingsMarker({ side, slotCount, extraServings, highlighted = false }: ServingsMarkerProps) {
   if (extraServings.length === 0) return null;
   return (
     <Html position={servingsMarkerPosition(side, slotCount)} center zIndexRange={[15, 0]} style={{ pointerEvents: "none" }}>
-      <div className={`servings-marker servings-marker--${side}`}>
+      <div className={`servings-marker servings-marker--${side}${highlighted ? " servings-marker--highlighted" : ""}`}>
         {extraServings.map((bonus) => `+${bonus}`).join(", ")}
       </div>
     </Html>

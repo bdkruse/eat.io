@@ -153,6 +153,23 @@
 .button--ghost:hover { color: var(--ink); background: rgba(255, 255, 255, 0.6); }
 .panel--menu > .button--primary { width: 100%; margin-bottom: 12px; }
 
+/* The first-visit hint under How to play: a gold note pointing up at the button. */
+.tutorial-hint {
+  position: relative; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 2px 0 4px; padding: 8px 8px 8px 14px; border-radius: 12px;
+  background: var(--gold); color: var(--ink); box-shadow: var(--shadow);
+  font-family: var(--font-structural); font-weight: 700; font-size: 14px;
+}
+.tutorial-hint::before {
+  content: ""; position: absolute; top: -6px; left: 50%; width: 12px; height: 12px;
+  background: var(--gold); transform: translateX(-50%) rotate(45deg);
+}
+.tutorial-hint__close {
+  flex: none; border: none; border-radius: 8px; padding: 2px 8px; cursor: pointer;
+  background: transparent; color: var(--ink); font-family: var(--font-structural); font-weight: 800; font-size: 18px; line-height: 1;
+}
+.tutorial-hint__close:hover { background: rgba(255, 255, 255, 0.5); }
+
 /* ---------- customize ---------- */
 .option-row { margin-bottom: 14px; }
 .option-row__label { display: block; font-family: var(--font-structural); font-weight: 600; font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }

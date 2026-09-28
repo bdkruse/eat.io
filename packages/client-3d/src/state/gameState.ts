@@ -250,9 +250,10 @@ export function selectLunchMoney(state: AppState): number | null {
 
 /**
  * The Lunch Money a finished game earned: your own final score, which is exactly what the
- * server credits a logged-in player (§13.6). Null for a guest and before the game is over.
- * Taken from the result rather than from balance changes, so a buy landing mid-game or a
- * post-game profile lost to a reconnect cannot skew it (fix round 1).
+ * server credits a logged-in player (§13.6). Null for a guest, for a practice game (which
+ * earns nothing), and before the game is over. Taken from the result rather than from
+ * balance changes, so a buy landing mid-game or a post-game profile lost to a reconnect
+ * cannot skew it (fix round 1).
  */
 export function lunchMoneyEarnedIn(
   account: Profile | null,
@@ -260,7 +261,13 @@ export function lunchMoneyEarnedIn(
   room: RoomStateMessage | null,
 ): number | null {
   if (account === null || result === null || room === null) return null;
+  if (room.mode === "practice") return null;
   return result.scores[room.you.seat] ?? null;
+}
+
+/** True in a practice game against the bot: the tutorial runs and nothing is earned. */
+export function selectPracticeRoom(state: AppState): boolean {
+  return state.room?.mode === "practice";
 }
 
 export function selectLunchMoneyEarned(state: AppState): number | null {

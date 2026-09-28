@@ -7,11 +7,26 @@ import { RoundChip } from "./GameHud.js";
 import { useRetained } from "../hooks/useRetained.js";
 import { cardGlyph } from "./cardGlyph.js";
 
-function LunchCard({ card, index, selected, disabled, onClick }: { card: CardView; index: number; selected: boolean; disabled: boolean; onClick: () => void }) {
+function LunchCard({
+  card,
+  index,
+  selected,
+  suggested,
+  disabled,
+  onClick,
+}: {
+  card: CardView;
+  index: number;
+  selected: boolean;
+  /** The practice game's prompt points at this card. */
+  suggested: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
   // Everything shown comes from server data — no switch over card ids.
   return (
     <button
-      className={`lunch-card lunch-card--${card.action}${selected ? " lunch-card--selected" : ""}`}
+      className={`lunch-card lunch-card--${card.action}${selected ? " lunch-card--selected" : ""}${suggested ? " lunch-card--suggested" : ""}`}
       onClick={onClick}
       disabled={disabled}
       aria-pressed={selected}
@@ -39,7 +54,7 @@ function LunchCard({ card, index, selected, disabled, onClick }: { card: CardVie
 /** Status, End turn, and your hand. Keys 1–9 pick a card, Enter ends the turn, Esc clears. */
 export function HandBar() {
   const { state } = useGame();
-  const { selection, targetCount, ready, chooseCard, clearSelection, endTurn } = useLocalState();
+  const { selection, targetCount, ready, chooseCard, clearSelection, endTurn, tutorialPrompt } = useLocalState();
   const room = useRetained(state.room);
   const awaitingYou = selectAwaitingYou(state);
   const frozen = selectBoardFrozen(state);
@@ -60,6 +75,15 @@ export function HandBar() {
 
   if (!room) return null;
 
+  // The practice prompt's highlights: one suggested card (the first copy), the whole hand,
+  // or a pulsing End turn.
+  const suggestedInstanceId =
+    tutorialPrompt?.anchor === "card"
+      ? hand.find((card) => card.id === tutorialPrompt.suggestedCardId)?.instanceId ?? null
+      : null;
+  const wholeHandSuggested = tutorialPrompt?.anchor === "hand";
+  const endTurnPulses = tutorialPrompt?.anchor === "end-turn";
+
   const status = frozen
     ? "Reconnecting — hold on"
     : !awaitingYou
@@ -75,7 +99,11 @@ export function HandBar() {
       <div className="handbar__turn">
         <RoundChip />
         <span className={ready ? "status-pill status-pill--ready" : "status-pill"}>{status}</span>
-        <button className="button button--primary" disabled={!ready || !awaitingYou || frozen} onClick={endTurn}>
+        <button
+          className={endTurnPulses ? "button button--primary button--pulse" : "button button--primary"}
+          disabled={!ready || !awaitingYou || frozen}
+          onClick={endTurn}
+        >
           End turn
         </button>
       </div>
@@ -86,6 +114,7 @@ export function HandBar() {
             card={card}
             index={index}
             selected={selection.cardInstanceId === card.instanceId}
+            suggested={wholeHandSuggested || card.instanceId === suggestedInstanceId}
             disabled={!awaitingYou || frozen}
             onClick={() => chooseCard(card.instanceId)}
           />

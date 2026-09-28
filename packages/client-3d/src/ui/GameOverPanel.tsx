@@ -9,18 +9,28 @@ export function GameOverPanel() {
   const room = useRetained(state.room);
   if (!result || !room) return null;
 
-  const headline = result.kind === "win" ? "You ate the most!" : result.kind === "loss" ? `${room.opponent.name} ate the most` : "Dead even — a draw";
+  // A practice game ends the tutorial the same way whoever ate more (spec §5.3).
+  const practice = room.mode === "practice";
+  const headline = practice
+    ? "You are ready!"
+    : result.kind === "win"
+      ? "You ate the most!"
+      : result.kind === "loss"
+        ? `${room.opponent.name} ate the most`
+        : "Dead even — a draw";
+  const badgeKind = practice ? "win" : result.kind;
   const rows = [
     { seat: room.you.seat, name: room.you.name, score: result.scores[room.you.seat] ?? 0, side: "you" },
     { seat: room.opponent.seat, name: room.opponent.name, score: result.scores[room.opponent.seat] ?? 0, side: "opponent" },
   ];
   const best = Math.max(...rows.map((row) => row.score));
-  // Only a logged-in player earns Lunch Money: their own score (fix round 1).
+  // Only a logged-in player earns Lunch Money: their own score (fix round 1). A practice
+  // game earns none, so there is no line.
   const lunchMoneyEarned = lunchMoneyEarnedIn(state.account, result, room);
 
   return (
     <section className="panel panel--over">
-      <div className={`result-badge result-badge--${result.kind}`}>{headline}</div>
+      <div className={`result-badge result-badge--${badgeKind}`}>{headline}</div>
       <div className="result-rows">
         {rows.map((row) => (
           // On a draw both rows tie for best, so both are marked — correct.
@@ -37,7 +47,7 @@ export function GameOverPanel() {
       )}
       <div className="panel__actions panel__actions--row">
         <button className="button button--primary" onClick={playAgain}>
-          Play again
+          {practice ? "Find a game" : "Play again"}
         </button>
         <button className="button button--secondary" onClick={leaveToMenu}>
           Back to menu

@@ -6,12 +6,13 @@ import type { Result, RoomStateMessage, TrayView } from "@eat.io/protocol";
 import { useBoostedTray } from "../../hooks/useBoostedTray.js";
 import { useEatenTrays } from "../../hooks/useEatenTrays.js";
 import type { Selection } from "../../state/selection.js";
+import type { TutorialAnchor } from "../../tutorial/tutorialSteps.js";
 import { appearanceFromName, type Appearance } from "../../appearance/appearance.js";
 import { LunchTable } from "../cafeteria/LunchTable.js";
 import { CUSTOMIZE_SPOT } from "../cameraShots.js";
 import { BENCH_HEIGHT, Kid } from "../characters/Kid.js";
 import type { Animation, Pose } from "../characters/poses.js";
-import { toon } from "../materials.js";
+import { toon, unlit } from "../materials.js";
 import { ServingsMarker } from "./ServingsMarker.js";
 import {
   EATER_FACING,
@@ -22,7 +23,7 @@ import {
   type Side,
   type Vector3Tuple,
 } from "./tableLayout.js";
-import { Tray3D } from "./Tray3D.js";
+import { SELECTED_GLOW, Tray3D } from "./Tray3D.js";
 
 /** The eater is the same kid every game: hungry, napkin tucked in, fork at the ready. */
 const EATER_LOOK: Appearance = {
@@ -54,6 +55,8 @@ export interface GameTableProps {
   /** False while frozen, waiting on the opponent, or after the game — trays ignore clicks. */
   interactive: boolean;
   showLabels: boolean;
+  /** What the practice game's prompt points at, or null. */
+  tutorialAnchor: TutorialAnchor;
   onTrayClick: (trayId: string) => void;
 }
 
@@ -67,6 +70,7 @@ export function GameTable({
   targetCount,
   interactive,
   showLabels,
+  tutorialAnchor,
   onTrayClick,
 }: GameTableProps) {
   const yourAnimation: Animation = result
@@ -113,6 +117,7 @@ export function GameTable({
           targetCount={targetCount}
           interactive={interactive}
           showLabels={showLabels}
+          tutorialAnchor={tutorialAnchor}
           onTrayClick={onTrayClick}
         />
       ) : (
@@ -129,6 +134,22 @@ function Eater({ animation }: { animation: Animation }) {
   );
 }
 
+/** A pulsing gold ring on the floor around the eater's stool, while the practice game's
+ *  prompt points at the eater. */
+function EaterHighlight() {
+  const ring = useRef<Group>(null);
+  useFrame(({ clock }) => {
+    ring.current?.scale.setScalar(1 + Math.sin(clock.elapsedTime * 4) * 0.08);
+  });
+  return (
+    <group ref={ring} position={[EATER_POSITION[0], 0.01, EATER_POSITION[2]]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} material={unlit(SELECTED_GLOW, 0.85)}>
+        <ringGeometry args={[0.42, 0.55, 40]} />
+      </mesh>
+    </group>
+  );
+}
+
 /**
  * Everything that exists only while a room does. Mounted per room, so the eaten-tray
  * memory can never carry over into the next game — tray ids restart with every room.
@@ -140,6 +161,7 @@ function RoomLayer({
   targetCount,
   interactive,
   showLabels,
+  tutorialAnchor,
   onTrayClick,
 }: {
   room: RoomStateMessage;
@@ -148,6 +170,7 @@ function RoomLayer({
   targetCount: number;
   interactive: boolean;
   showLabels: boolean;
+  tutorialAnchor: TutorialAnchor;
   onTrayClick: (trayId: string) => void;
 }) {
   const yourTrays = useEatenTrays(room.you.table);
@@ -173,6 +196,7 @@ function RoomLayer({
   return (
     <>
       <Eater animation={biting ? "chomp" : result ? "listen" : "hungry"} />
+      {tutorialAnchor === "eater" && <EaterHighlight />}
       <Kid
         appearance={opponentLook}
         pose="sit"
@@ -195,6 +219,7 @@ function RoomLayer({
         targetCount={targetCount}
         showLabels={showLabels}
         boostedTrayId={yourBoostedTrayId}
+        highlighted={tutorialAnchor === "trays" || tutorialAnchor === "tray-target"}
         onTrayClick={interactive ? onTrayClick : undefined}
       />
       <TrayRow
@@ -207,7 +232,12 @@ function RoomLayer({
         showLabels={showLabels}
         boostedTrayId={opponentBoostedTrayId}
       />
-      <ServingsMarker side="near" slotCount={room.you.table.length} extraServings={room.you.extraServings} />
+      <ServingsMarker
+        side="near"
+        slotCount={room.you.table.length}
+        extraServings={room.you.extraServings}
+        highlighted={tutorialAnchor === "servings-marker"}
+      />
       <ServingsMarker side="far" slotCount={room.opponent.table.length} extraServings={room.opponent.extraServings} />
     </>
   );
@@ -223,6 +253,7 @@ function TrayRow({
   targetCount,
   showLabels,
   boostedTrayId,
+  highlighted = false,
   onTrayClick,
 }: {
   side: Side;
@@ -233,6 +264,7 @@ function TrayRow({
   targetCount: number;
   showLabels: boolean;
   boostedTrayId?: string | null;
+  highlighted?: boolean;
   onTrayClick?: ((trayId: string) => void) | undefined;
 }) {
   // Trays already on the table when this row first renders start in place; any tray seen
@@ -259,6 +291,7 @@ function TrayRow({
             fresh={seen.current !== null && !seen.current.has(tray.id)}
             eaten={eaten}
             boosted={boostedTrayId === tray.id}
+            highlighted={highlighted}
             selected={position >= 0}
             order={position >= 0 && targetCount > 1 ? position + 1 : null}
             showLabel={showLabels}
